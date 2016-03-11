@@ -22,7 +22,7 @@ function varargout = DataExportGui(varargin)
 
 % Edit the above text to modify the response to help DataExportGui
 
-% Last Modified by GUIDE v2.5 04-Mar-2016 17:13:18
+% Last Modified by GUIDE v2.5 11-Mar-2016 13:12:40
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -55,118 +55,141 @@ function DataExportGui_OpeningFcn(hObject, eventdata, handles, varargin)
 % Choose default command line output for DataExportGui
 handles.output = hObject;
 
-% function declaration
-axis_name= @(x) sprintf('Chan %.0f',x);
-
 %% get most recently changed data folder
 dataDir='C:\Data\';
 dataDirListing=dir(dataDir);
-dataDirListing=dataDirListing(3:end); %removing dots
+%removing dots
+dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
+    {dataDirListing.name},'UniformOutput',false)));
+%removing other folders
+dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x)...
+    regexp('Behav | DB | ImpedanceChecks | Video | export | example-klusters_neuroscope',x),...
+    {dataDirListing.name},'UniformOutput',false)));
 [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
 recentDataFolder=[dataDir dataDirListing(fDateIdx(1)).name '\'];
-%get most recent data folder in that folder
+%get most recent data folder in that folder if there is one 
 dataDirListing=dir(recentDataFolder);
+%removing dots
+dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
+    {dataDirListing.name},'UniformOutput',false)));
 [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
 recentDataFolder=[recentDataFolder dataDirListing(fDateIdx(1)).name '\'];
 
 %% Get file path
 [handles.fname,handles.dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
     '*.*','All Files' },'Most recent data',recentDataFolder);
-cd(handles.dname);
-set(handles.FileName,'string',handles.fname)
-% disp(['loading ' dname fname]);
-
-%% Load data
-[handles.rec_info,handles.rawData,handles.trials]=LoadEphysData(handles.fname,handles.dname);
-% parpool(2)
-% parfor tasknum = 1:2
-%     foo=[];
-%     if tasknum == 1
-%                 %assuming loading speed at 20Mb/s
-%         tStart=tic; lStart=tic; barlevel=0;
-%         wb = waitbar( barlevel, 'Reading Data File...' );
-%         while isempty(foo) & toc(tStart)<3600
-%             if toc(lStart)>5
-%                 barlevel=barlevel+0.12;
-%                 waitbar( min([1 1+barlevel]), wb, 'still reading');   
-%             end
-%         end
-%         close(wb);
-%     elseif tasknum == 2
-%         [foo,bla,bli]=LoadEphysData(handles.fname,handles.dname);
-%     end
-% end
-
-%% Plot raw data excerpt
-dataOneSecSample=handles.rawData(:,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
-axes(handles.Axes_RawData); hold on;
-set(handles.Axes_RawData,'Visible','on');
-%     subplot(1,2,1);
-for ChN=1:size(handles.rawData,1)
-    plot(handles.Axes_RawData,double(dataOneSecSample(ChN,:))+(max(abs(mean(dataOneSecSample)))*(ChN-1))-...
-        mean(mean(dataOneSecSample(ChN,:))));
+if handles.fname==0
+    handles.fname='';
+    handles.dname=recentDataFolder;
 end
-set(handles.Axes_RawData,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
-    'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
-    round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
-set(handles.Axes_RawData,'ytick',linspace(0,double(max(abs(mean(dataOneSecSample)))*(ChN-1)),size(handles.rawData,1)),'yticklabel',...
-    cellfun(axis_name, num2cell(1:size(handles.rawData,1)), 'UniformOutput', false))
-%   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
-axis('tight');box off;
-xlabel(handles.Axes_RawData,'2 sec mid-recording')
-ylabel(handles.Axes_RawData,'Raw signal')
-set(handles.Axes_RawData,'Color','white','FontSize',12,'FontName','calibri');
-
-%% Plot pre-proc excerpt
-preprocMenu=get(handles.LB_ProcessingType,'string');
-preprocOption=get(handles.LB_ProcessingType,'value');
-preprocOption=preprocMenu(preprocOption);
-switch preprocOption{:}
-    case 'No pre-processing'
-        preprocOption={'nopp'};
-    case 'CAR (all channels)       '
-        preprocOption={'CAR','all'};
-    case 'CAR'
-        preprocOption={'CAR'};
-    case 'Bandpass (500 - 6000)'
-        preprocOption={'bandpass'}; 
-    case 'Bandpass - other'
-        preprocOption={'bandpass','select'}; 
-    case 'Normalization'
-        preprocOption={'norm'};
-    case 'Differential filtering'
-        preprocOption={'difffilt'};
-    case 'Lowpass 6000'
-        preprocOption={'lowpass'};
-    case 'Highpass 500'
-        preprocOption={'highpass'};
-    case 'Substract Moving Average'
-        preprocOption={'movav_sub'};
-    case 'Multi-step filtering'
-        preprocOption={'multifilt'};
-end
-
-dataOneSecSample_preproc=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
-axes(handles.Axes_PreProcessedData); hold on;
-set(handles.Axes_PreProcessedData,'Visible','on');
-%     subplot(1,2,2);  hold on;
-for ChN=1:size(handles.rawData,1)
-    plot(handles.Axes_PreProcessedData,(dataOneSecSample_preproc(ChN,:))+(max(abs(max(dataOneSecSample_preproc)))*(ChN-1))-...
-        mean(mean(dataOneSecSample_preproc(ChN,:))));
-end
-set(handles.Axes_PreProcessedData,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
-    'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
-    round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
-set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(max(abs(max(dataOneSecSample_preproc)))*int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
-    cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
-%   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
-axis('tight');box off;
-xlabel(handles.Axes_PreProcessedData,['Processing option: ' preprocOption{1}])
-ylabel(handles.Axes_PreProcessedData,'Pre-processed signal')
-set(handles.Axes_PreProcessedData,'Color','white','FontSize',12,'FontName','calibri');
+handles=LoadData(handles);
 
 %%  Update handles structure
 guidata(hObject, handles);
+
+%% Load data function
+function handles=LoadData(handles)
+if strcmp(handles.fname,'')
+    set(handles.FileName,'string','')
+else
+    cd(handles.dname);
+    set(handles.FileName,'string',[handles.dname '\' handles.fname])
+    % disp(['loading ' dname fname]);
+    
+    % function declaration
+    axis_name= @(x) sprintf('Chan %.0f',x);
+    
+    %% Load data
+    [handles.rec_info,handles.rawData,handles.trials]=LoadEphysData(handles.fname,handles.dname);
+    % parpool(2)
+    % parfor tasknum = 1:2
+    %     foo=[];
+    %     if tasknum == 1
+    %                 %assuming loading speed at 20Mb/s
+    %         tStart=tic; lStart=tic; barlevel=0;
+    %         wb = waitbar( barlevel, 'Reading Data File...' );
+    %         while isempty(foo) & toc(tStart)<3600
+    %             if toc(lStart)>5
+    %                 barlevel=barlevel+0.12;
+    %                 waitbar( min([1 1+barlevel]), wb, 'still reading');
+    %             end
+    %         end
+    %         close(wb);
+    %     elseif tasknum == 2
+    %         [foo,bla,bli]=LoadEphysData(handles.fname,handles.dname);
+    %     end
+    % end
+    
+    handles.keepChannels=(1:size(handles.rawData,1))';
+    
+    %% Plot raw data excerpt
+    dataOneSecSample=handles.rawData(:,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
+    axes(handles.Axes_RawData); hold on;
+    set(handles.Axes_RawData,'Visible','on');
+    %     subplot(1,2,1);
+    for ChN=1:size(handles.rawData,1)
+        plot(handles.Axes_RawData,double(dataOneSecSample(ChN,:))+(max(abs(mean(dataOneSecSample)))*(ChN-1))-...
+            mean(mean(dataOneSecSample(ChN,:))));
+    end
+    set(handles.Axes_RawData,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
+        'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
+        round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
+    set(handles.Axes_RawData,'ytick',linspace(0,double(max(abs(mean(dataOneSecSample)))*(ChN-1)),size(handles.rawData,1)),'yticklabel',...
+        cellfun(axis_name, num2cell(1:size(handles.rawData,1)), 'UniformOutput', false))
+    %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
+    axis('tight');box off;
+    xlabel(handles.Axes_RawData,'2 sec mid-recording')
+    ylabel(handles.Axes_RawData,'Raw signal')
+    set(handles.Axes_RawData,'Color','white','FontSize',12,'FontName','calibri');
+    
+    %% Plot pre-proc excerpt
+    preprocMenu=get(handles.LB_ProcessingType,'string');
+    preprocOption=get(handles.LB_ProcessingType,'value');
+    preprocOption=preprocMenu(preprocOption);
+    switch preprocOption{:}
+        case 'No pre-processing'
+            preprocOption={'nopp'};
+        case 'CAR (all channels)       '
+            preprocOption={'CAR','all'};
+        case 'CAR'
+            preprocOption={'CAR'};
+        case 'Bandpass (500 - 6000)'
+            preprocOption={'bandpass'};
+        case 'Bandpass - other'
+            preprocOption={'bandpass','select'};
+        case 'Normalization'
+            preprocOption={'norm'};
+        case 'Differential filtering'
+            preprocOption={'difffilt'};
+        case 'Lowpass 6000'
+            preprocOption={'lowpass'};
+        case 'Highpass 500'
+            preprocOption={'highpass'};
+        case 'Substract Moving Average'
+            preprocOption={'movav_sub'};
+        case 'Multi-step filtering'
+            preprocOption={'multifilt'};
+    end
+    
+    dataOneSecSample_preproc=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
+    axes(handles.Axes_PreProcessedData); hold on;
+    set(handles.Axes_PreProcessedData,'Visible','on');
+    %     subplot(1,2,2);  hold on;
+    for ChN=1:size(handles.rawData,1)
+        plot(handles.Axes_PreProcessedData,(dataOneSecSample_preproc(ChN,:))+(max(abs(max(dataOneSecSample_preproc)))*(ChN-1))-...
+            mean(mean(dataOneSecSample_preproc(ChN,:))));
+    end
+    set(handles.Axes_PreProcessedData,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
+        'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
+        round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
+    set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(max(abs(max(dataOneSecSample_preproc)))*int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
+        cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
+    axis('tight');box off;
+    xlabel(handles.Axes_PreProcessedData,['Processing option: ' preprocOption{1}])
+    ylabel(handles.Axes_PreProcessedData,'Pre-processed signal')
+    set(handles.Axes_PreProcessedData,'Color','white','FontSize',12,'FontName','calibri');
+end
 
 % --- Outputs from this function are returned to the command line.
 function varargout = DataExportGui_OutputFcn(hObject, eventdata, handles)
@@ -215,14 +238,14 @@ switch preprocOption{:}
 end
 
 %% Plot pre-proc excerpt
-dataOneSecSample=handles.rawData(:,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
+dataOneSecSample=handles.rawData(handles.keepChannels,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
 dataOneSecSample_preproc=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
 cla(handles.Axes_PreProcessedData); %hold on;
 % set(handles.Axes_PreProcessedData,'Visible','on');
 %     subplot(1,2,2);  hold on;
-set(handles.Axes_PreProcessedData,'ylim',[-1000,double(max(abs(max(dataOneSecSample_preproc)))*int16(size(handles.rawData,1)-1))+1000])
+set(handles.Axes_PreProcessedData,'ylim',[-1000,double(max(abs(max(dataOneSecSample_preproc)))*int16(size(handles.keepChannels,1)-1))+1000])
 
-for ChN=1:size(handles.rawData,1)
+for ChN=1:size(handles.keepChannels,1)
     plot(handles.Axes_PreProcessedData,(dataOneSecSample_preproc(ChN,:))+(max(abs(max(dataOneSecSample_preproc)))*(ChN-1))-...
         mean(mean(dataOneSecSample_preproc(ChN,:))));
 end
@@ -297,6 +320,11 @@ function PB_Export_Callback(hObject, eventdata, handles)
 tic;
 wb = waitbar( 0, 'Exporting Data' );
 set(wb,'Name','Exporting','Color',[0 0.4471 0.7412]);
+
+if get(handles.CB_ExportWhichChannel,'value')==0
+    handles.rawData=handles.rawData(handles.keepChannels,:);
+end
+
 %% pre-process data
 preprocMenu=get(handles.LB_ProcessingType,'string');
 preprocOption=get(handles.LB_ProcessingType,'value');
@@ -331,15 +359,6 @@ handles.rawData=PreProcData(handles.rawData,handles.rec_info.samplingRate,prepro
 
 if ~isa(handles.rawData,'int16')
     handles.rawData=int16(handles.rawData);
-end
-
-if get(handles.CB_ExportWhichChannel,'value')==0
-    % channel string
-    chStr= num2str(linspace(1,size(handles.rawData,1),size(handles.rawData,1))');
-
-    ChExport= listdlg('PromptString',...
-        'select channels to export:','ListString',chStr);
-    handles.rawData=handles.rawData(ChExport,:);
 end
 
 %% Spike thresholding 
@@ -409,12 +428,18 @@ end
 
 %% Export
 waitbar( 0.9, wb, 'Exporting data');
-cd('C:\Data\export');
+if get(handles.RB_ExportSpikes_OfflineSort,'value')==0
+    exportDir=uigetdir('C:\Data\export','Select export directory');
+    cd(exportDir)
+else
+    cd('C:\Data\export');
+end
 if strfind(handles.rec_info.expname{end}(2:end),'LY') %regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_')
     uname='Leeyup';
 else
     uname=getenv('username');
 end
+
 if regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_') %Open Ephys date format
     dateStart=regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_');
 elseif regexp(handles.rec_info.expname{end}(2:end),'^\d\d\d\d')
@@ -459,21 +484,27 @@ switch handles.rec_info.sys
         handles.rec_info.sys='BR';
 end
 
-if get(handles.CB_AddTTLChannel,'value')
-    TTL_reSampled = handles.trials.continuous - median(handles.trials.continuous);
-    TTL_reSampled = resample(double(TTL_reSampled),30,1);
-    TTL_reSampled = TTL_reSampled(1:size(handles.rawData,2));
-    handles.rawData=[handles.rawData;TTL_reSampled];
-    
-    handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
-        handles.rec_info.date '_' handles.rec_info.sys '_' ...
-        num2str(size(handles.rawData,1)) 'Ch_SyncCh_'  handles.preprocOption];
+if get(handles.CB_SpecifyName,'value')==0
+    handles.rec_info.expname=inputdlg('Enter export file name');
 else
-    handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
-        handles.rec_info.date '_' handles.rec_info.sys '_' ...
-        num2str(size(handles.rawData,1)) 'Ch_'  handles.preprocOption];
+    if get(handles.CB_AddTTLChannel,'value')
+        if isfield(handles.trials,'continuous')
+            TTL_reSampled = handles.trials.continuous - median(handles.trials.continuous);
+            TTL_reSampled = resample(double(TTL_reSampled),30,1);
+            TTL_reSampled = TTL_reSampled(1:size(handles.rawData,2));
+            handles.rawData=[handles.rawData;TTL_reSampled];
+        else %need to create one
+        end
+        
+        handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
+            handles.rec_info.date '_' handles.rec_info.sys '_' ...
+            num2str(size(handles.rawData,1)) 'Ch_SyncCh_'  handles.preprocOption];
+    else
+        handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
+            handles.rec_info.date '_' handles.rec_info.sys '_' ...
+            num2str(size(handles.rawData,1)) 'Ch_'  handles.preprocOption];
+    end
 end
-
 if get(handles.RB_ExportRawData,'value')
     fileID = fopen([handles.rec_info.expname '.dat'],'w');
     fwrite(fileID,handles.rawData,'int16');
@@ -483,7 +514,7 @@ end
 
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
     Trials=handles.trials;
-    save(handles.rec_info.expname,'Spikes','Trials'); 
+    save(handles.rec_info.expname,'Spikes','Trials','-v7.3'); 
 end
 close(wb);
 disp(['took ' num2str(toc) ' seconds to export data']);
@@ -503,7 +534,19 @@ function CB_ExportWhichChannel_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hint: get(hObject,'Value') returns toggle state of CB_ExportWhichChannel
+if get(hObject,'Value')==0
+    % channel string
+   chStr= num2str(linspace(1,size(handles.rawData,1),size(handles.rawData,1))');
+   handles.keepChannels= (listdlg('PromptString',...
+        'select channels to keep:','ListString',chStr))';
+else
+    handles.keepChannels=(1:size(handles.rawData,1))';
+end
+
+LB_ProcessingType_Callback(handles.LB_ProcessingType, eventdata, handles);
+
+%%  Update handles structure
+guidata(hObject, handles);
 
 
 % --- Executes on selection change in LB_ThresholdSide.
@@ -527,3 +570,36 @@ function LB_ThresholdSide_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+
+
+% --- Executes on button press in CB_SpecifyName.
+function CB_SpecifyName_Callback(hObject, eventdata, handles)
+% hObject    handle to CB_SpecifyName (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of CB_SpecifyName
+
+
+% --- Executes on button press in PB_SpikePanel.
+function PB_SpikePanel_Callback(hObject, eventdata, handles)
+% hObject    handle to PB_SpikePanel (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --- Executes on button press in PB_LoadFile.
+function PB_LoadFile_Callback(hObject, eventdata, handles)
+% hObject    handle to PB_LoadFile (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+[handles.fname,handles.dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
+    '*.*','All Files' },'Most recent data',handles.dname);
+if handles.fname==0
+    handles.fname='';
+    handles.dname='C:\Data';
+end
+handles=LoadData(handles);
+%%  Update handles structure
+guidata(hObject, handles);

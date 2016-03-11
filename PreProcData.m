@@ -3,6 +3,11 @@ function data=PreProcData(data,samplingRate,filterOption)
 % channel string
 chStr= num2str(linspace(1,size(data,1),size(data,1))');
 
+%adjust dialogs position
+defaultFigPos=get(0, 'defaultfigureposition');
+diagPos=[1631 437 defaultFigPos(3:4)];
+set(0,'defaultfigureposition',diagPos);
+
 %% Pre-processing options
 if strcmp(filterOption{1},'lowpass')
     %% butterworth low-pass
@@ -318,4 +323,5 @@ elseif strcmp(filterOption{1},'multifilt')
     %     figure; plot(filtData{1}(1,4400:5450));
 end
 
+set(0,'defaultfigureposition', defaultFigPos);
 end
