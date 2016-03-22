@@ -33,7 +33,7 @@ elseif strcmp(filterOption{1},'bandpass')
         promptFields={'Enter highpass value','Enter lowpass value'};
         promptName='Butterworth IIR filter parameters';
         promptNumlines=1;
-        promptDefaultanswer={'500','6000'};
+        promptDefaultanswer={'500','10000'};
         filtValues=inputdlg(promptFields,promptName,promptNumlines,promptDefaultanswer);
         filtHP=str2double(filtValues{1});
         filtLP=str2double(filtValues{2});
@@ -75,17 +75,22 @@ elseif strcmp(filterOption{1},'movav_sub')
     end
 elseif  strcmp(filterOption{1},'CAR')
     %% common average referencing   
-    % butterworth band-pass
-    [b,a] = butter(3,[500 6000]/(samplingRate/2),'bandpass');
+    if size(filterOption,2)>1 & strcmp(filterOption{2},'LP')
+        % butterworth low-pass
+        [b,a] = butter(3,10000/(samplingRate/2),'low');
+    else
+        % butterworth band-pass
+        [b,a] = butter(3,[500 10000]/(samplingRate/2),'bandpass');
+    end
     for chNm=1:size(data,1)
         data(chNm,:)= filter(b,a,single(data(chNm,:)));
     end
     % select channels to use for CAR
-    if size(filterOption,2)==1
+    if size(filterOption,2)>1 & strcmp(filterOption{2},'all')
+        ChRef=linspace(1,size(data,1),size(data,1));
+    else
         ChRef= listdlg('PromptString',...
         'select channels to use for CAR to plot:','ListString',chStr);
-    elseif strcmp(filterOption{2},'all')
-        ChRef=linspace(1,size(data,1),size(data,1));
     end
     data=(data-repmat(median(data(ChRef,:),1),[size(data,1),1]));%./mad(faa,1);
     

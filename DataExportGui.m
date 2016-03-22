@@ -22,7 +22,7 @@ function varargout = DataExportGui(varargin)
 
 % Edit the above text to modify the response to help DataExportGui
 
-% Last Modified by GUIDE v2.5 11-Mar-2016 13:12:40
+% Last Modified by GUIDE v2.5 17-Mar-2016 12:32:22
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -72,8 +72,10 @@ dataDirListing=dir(recentDataFolder);
 %removing dots
 dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
     {dataDirListing.name},'UniformOutput',false)));
-[~,fDateIdx]=sort([dataDirListing.datenum],'descend');
-recentDataFolder=[recentDataFolder dataDirListing(fDateIdx(1)).name '\'];
+if size(dataDirListing,1)>0
+    [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
+    recentDataFolder=[recentDataFolder dataDirListing(fDateIdx(1)).name '\'];
+end
 
 %% Get file path
 [handles.fname,handles.dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
@@ -149,10 +151,12 @@ else
     switch preprocOption{:}
         case 'No pre-processing'
             preprocOption={'nopp'};
-        case 'CAR (all channels)       '
+        case 'BP - CAR (all channels)       ' 
             preprocOption={'CAR','all'};
-        case 'CAR'
+        case 'BP - CAR'
             preprocOption={'CAR'};
+        case 'LP - CAR'
+            preprocOption={'CAR','LP'};
         case 'Bandpass (500 - 6000)'
             preprocOption={'bandpass'};
         case 'Bandpass - other'
@@ -215,10 +219,12 @@ preprocOption=preprocMenu(get(hObject,'value'));
 switch preprocOption{:}
     case 'No pre-processing'
         preprocOption={'nopp'};
-    case 'CAR (all channels)       '
-        preprocOption={'CAR','all'};
-    case 'CAR'
-        preprocOption={'CAR'};
+    case 'BP - CAR (all channels)       ' 
+            preprocOption={'CAR','all'};
+    case 'BP - CAR'
+            preprocOption={'CAR'};
+    case 'LP - CAR'
+            preprocOption={'CAR','LP'};
     case 'Bandpass (500 - 6000)'
         preprocOption={'bandpass'}; 
     case 'Bandpass - other'
@@ -321,8 +327,22 @@ tic;
 wb = waitbar( 0, 'Exporting Data' );
 set(wb,'Name','Exporting','Color',[0 0.4471 0.7412]);
 
+cd(handles.dname); %in case some other file was exported before
+
 if get(handles.CB_ExportWhichChannel,'value')==0
     handles.rawData=handles.rawData(handles.keepChannels,:);
+end
+
+if get(handles.RB_ExportOnlySample,'value')==1
+    if get(handles.LB_ExportSampleLocation,'value')==1
+        handles.rawData=handles.rawData(:,1:30000*60*str2double(get(handles.TxEdit_SampleDuration,'String')));
+    elseif get(handles.LB_ExportSampleLocation,'value')==2  
+        handles.rawData=handles.rawData(:,...
+            round(size(handles.rawData,2)/2)-30000*30*str2double(get(handles.TxEdit_SampleDuration,'String')):...
+            round(size(handles.rawData,2)/2)+30000*30*str2double(get(handles.TxEdit_SampleDuration,'String')));
+    elseif get(handles.LB_ExportSampleLocation,'value')==3
+        handles.rawData=handles.rawData(:,end-30000*60*str2double(get(handles.TxEdit_SampleDuration,'String')):end);
+    end
 end
 
 %% pre-process data
@@ -332,10 +352,12 @@ preprocOption=preprocMenu(preprocOption);
 switch preprocOption{:}
     case 'No pre-processing'
         preprocOption={'nopp'};
-    case 'CAR (all channels)       '
-        preprocOption={'CAR','all'};
-    case 'CAR'
-        preprocOption={'CAR'};
+    case 'BP - CAR (all channels)       ' 
+            preprocOption={'CAR','all'};
+    case 'BP - CAR'
+            preprocOption={'CAR'};
+    case 'LP - CAR'
+            preprocOption={'CAR','LP'};
     case 'Bandpass (500 - 6000)'
         preprocOption={'bandpass'}; 
     case 'Bandpass - other'
@@ -363,7 +385,7 @@ end
 
 %% Spike thresholding 
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1
-    waitbar( 0.5, wb, 'Getting spike times from RMS threshold');  
+    waitbar( 0.5, wb, 'Getting spike times from RMS threshold'); 
     for ChExN=1:size(handles.rawData,1)
         Spikes.Offline_Threshold.channel(ChExN)=ChExN;
         Spikes.Offline_Threshold.samplingRate(ChExN,1)=handles.rec_info.samplingRate;
@@ -415,20 +437,20 @@ waitbar( 0.7, wb, 'Getting clock time');
 if strfind(handles.fname,'raw.kwd')
     % to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
     if h5readatt(handles.fname,'/recordings/0/','start_time')==0
-        Spikes.clockTimes=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
-        Spikes.clockTimes=Spikes.clockTimes(1);
+        handles.trials.startClockTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
+        handles.trials.startClockTime=handles.trials.startClockTime(1);
     else
-        Spikes.clockTimes=h5readatt(handles.fname,'/recordings/0/','start_time');
+        handles.trials.startClockTime=h5readatt(handles.fname,'/recordings/0/','start_time');
     end
 elseif strfind(handles.fname,'continuous')
-        Spikes.clockTimes=handles.rec_info.clockTimes.ts;
+        handles.trials.startClockTime=handles.rec_info.startClockTime.ts;
 else
-        Spikes.clockTimes=0; %Recording and TTL times already sync'ed
+        handles.trials.startClockTime=0; %Recording and TTL times already sync'ed
 end
 
 %% Export
 waitbar( 0.9, wb, 'Exporting data');
-if get(handles.RB_ExportSpikes_OfflineSort,'value')==0
+if get(handles.CB_SpecifyDir,'value')==0
     exportDir=uigetdir('C:\Data\export','Select export directory');
     cd(exportDir)
 else
@@ -450,9 +472,11 @@ else
     try
         fileListing=dir(handles.dname);
         handles.rec_info.date=fileListing(~cellfun('isempty',strfind({fileListing.name},handles.fname))).date;
-        handles.rec_info.date=strrep(handles.rec_info.date,'-','_');
-        handles.rec_info.date=strrep(handles.rec_info.date,' ','_');
-        handles.rec_info.date=strrep(handles.rec_info.date,':','_');
+        handles.rec_info.date=datetime(handles.rec_info.date,'Format','yyyy-MM-dd');
+        if strfind(handles.fname,'ns')
+            sessionNum=cell2mat(regexp(handles.fname,'(?<=^\w+\_)\d+(?=\_)','match'));
+            handles.rec_info.expname{end}=[handles.rec_info.expname{end} '_' sessionNum];
+        end
         dateStart=size(handles.rec_info.expname{end},2);
     catch
         return;
@@ -466,12 +490,12 @@ if ~isfield(handles.rec_info,'date')
         handles.rec_info.date=[dateItems{1} '_' dateItems{2:end}];
     end
 else
-    dateItems=regexp(handles.rec_info.date,'\d+','match');
-    try
-        handles.rec_info.date=[dateItems{1:3} '_' dateItems{4:6}];
-    catch
-        handles.rec_info.date=[dateItems{1} '_' dateItems{2:end}];
-    end
+%     dateItems=regexp(handles.rec_info.date,'\d+','match');
+%     try
+%         handles.rec_info.date=[dateItems{1:3} '_' dateItems{4:6}];
+%     catch
+%         handles.rec_info.date=[dateItems{1} '_' dateItems{2:end}];
+%     end
 end
 
 handles.rec_info.sys=handles.rec_info.expname{end-1}(2:end);
@@ -482,10 +506,24 @@ switch handles.rec_info.sys
         handles.rec_info.sys='TBSI';
     case 'Blackrock'
         handles.rec_info.sys='BR';
+    otherwise
+            switch cell2mat(regexp(handles.fname,'(?<=^\w+\.)\w\w','match'))
+                case 'ns'
+                    handles.rec_info.sys='BR';
+                case 'ra'
+                    handles.rec_info.sys='OEph';
+                case 'kw'
+                    handles.rec_info.sys='OEph';
+                case 'co'
+                    handles.rec_info.sys='OEph';
+                case 'ne'
+                    handles.rec_info.sys='TBSI';
+            end
 end
 
 if get(handles.CB_SpecifyName,'value')==0
     handles.rec_info.expname=inputdlg('Enter export file name');
+    handles.rec_info.expname=handles.rec_info.expname{:};
 else
     if get(handles.CB_AddTTLChannel,'value')
         if isfield(handles.trials,'continuous')
@@ -501,8 +539,7 @@ else
             num2str(size(handles.rawData,1)) 'Ch_SyncCh_'  handles.preprocOption];
     else
         handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
-            handles.rec_info.date '_' handles.rec_info.sys '_' ...
-            num2str(size(handles.rawData,1)) 'Ch_'  handles.preprocOption];
+            handles.rec_info.sys '_' num2str(size(handles.rawData,1)) 'Ch_'  handles.preprocOption];
     end
 end
 if get(handles.RB_ExportRawData,'value')
@@ -603,3 +640,58 @@ end
 handles=LoadData(handles);
 %%  Update handles structure
 guidata(hObject, handles);
+
+
+% --- Executes on selection change in LB_ExportSampleLocation.
+function LB_ExportSampleLocation_Callback(hObject, eventdata, handles)
+% hObject    handle to LB_ExportSampleLocation (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns LB_ExportSampleLocation contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from LB_ExportSampleLocation
+
+
+% --- Executes during object creation, after setting all properties.
+function LB_ExportSampleLocation_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to LB_ExportSampleLocation (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function TxEdit_SampleDuration_Callback(hObject, eventdata, handles)
+% hObject    handle to TxEdit_SampleDuration (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of TxEdit_SampleDuration as text
+%        str2double(get(hObject,'String')) returns contents of TxEdit_SampleDuration as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function TxEdit_SampleDuration_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to TxEdit_SampleDuration (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in RB_ExportOnlySample.
+function RB_ExportOnlySample_Callback(hObject, eventdata, handles)
+% hObject    handle to RB_ExportOnlySample (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of RB_ExportOnlySample

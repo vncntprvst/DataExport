@@ -111,6 +111,12 @@ try
         %making sure it exists
         fname=fileListing(~cellfun('isempty',cellfun(@(x) strfind(x,[fname '.kwe']),{fileListing.name},'UniformOutput',false))).name;
         Trials=getOE_Trials(fname);
+        if h5readatt(fname,'/recordings/0/','start_time')==0
+         Trials.startClockTime=h5read(fname,'/event_types/Messages/events/time_samples');
+         Trials.startClockTime= Trials.startClockTime(1);
+        else
+         Trials.startClockTime=h5readatt(fname,'/recordings/0/','start_time');
+        end
     elseif strfind(fname,'continuous')
         %% Open Ephys old format
         Trials=getOE_Trials('all_channels.events');
