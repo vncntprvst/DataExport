@@ -433,21 +433,23 @@ if get(handles.RB_ExportSpikes_OfflineSort,'value')==1
 end
 
 %% get clock time (time at which recording started, to sync with TTLs)
-waitbar( 0.7, wb, 'Getting clock time');  
-if strfind(handles.fname,'raw.kwd')
-    % to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
-    if h5readatt(handles.fname,'/recordings/0/','start_time')==0
-        handles.trials.startClockTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
-        handles.trials.startClockTime=handles.trials.startClockTime(1);
-    else
-        handles.trials.startClockTime=h5readatt(handles.fname,'/recordings/0/','start_time');
-    end
-elseif strfind(handles.fname,'continuous')
-        handles.trials.startClockTime=handles.rec_info.startClockTime.ts;
-else
-        handles.trials.startClockTime=0; %Recording and TTL times already sync'ed
-end
+if ~isfield(handles.trials,'startClockTime') | isempty(handles.trials.startClockTime)
+    waitbar( 0.7, wb, 'Getting clock time');  
+    if strfind(handles.fname,'raw.kwd')
+        % to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
+        % don't use
+        % h5readatt(handles.fname,'/recordings/0/','start_time').That
+        % start_time happens earlier (like 20ms before). The difference is
+        % due to the time it takes to open files
+            handles.trials.startClockTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
+            handles.trials.startClockTime=handles.trials.startClockTime(1);
 
+    elseif strfind(handles.fname,'continuous')
+            handles.trials.startClockTime=handles.rec_info.startClockTime.ts;
+    else
+            handles.trials.startClockTime=0; %Recording and TTL times already sync'ed
+    end
+end
 %% Export
 waitbar( 0.9, wb, 'Exporting data');
 if get(handles.CB_SpecifyDir,'value')==0
