@@ -383,6 +383,54 @@ if ~isa(handles.rawData,'int16')
     handles.rawData=int16(handles.rawData);
 end
 
+%% Online sorted spikes
+% find file format from directory listing
+dirlisting = dir(handles.dname);
+dirlisting = {dirlisting(:).name};
+dirlisting=dirlisting(cellfun('isempty',cellfun(@(x) strfind('.',x(end)),dirlisting,'UniformOutput',false)));
+fileformats={'continuous','kwe','kwik','nex','ns6'};
+whichformat=cellfun(@(x) find(~cellfun('isempty',strfind(fileformats,x(end-2:end)))),dirlisting,'UniformOutput',false);
+whichformat=fileformats(unique([whichformat{~cellfun('isempty',whichformat)}]));
+
+if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
+    waitbar( 0.5, wb, 'Getting spikes from online sorting');
+    switch whichformat{:}
+        case 'continuous'
+        case {'kwe','kwik'}
+        % KWX contains the spike data
+        % h5disp('experiment1.kwx')
+        ChanInfo=h5info('experiment1.kwx');
+        
+        %KWD contains the continuous data for a given processor in the /recordings/#/data dataset, where # is the recording number, starting at 0
+        RawInfo=h5info('experiment1_100.raw.kwd','/recordings/0/data');
+        RecDur=RawInfo.Dataspace.Size;
+        
+        %Keep list of channels with > 1Hz firing rate
+        GoodChans=cell(size(ChanInfo.Groups.Groups,1),1);
+        for ChExN=1:size(ChanInfo.Groups.Groups,1)
+            if ChanInfo.Groups.Groups(ChExN).Datasets(2).Dataspace.Size/(RecDur(2)/handles.rec_info.samplingRate)>1
+                Spikes.Online_Sorting.GoodChans(ChExN)=regexp(ChanInfo.Groups.Groups(ChExN).Name,'\d+$','match');
+            end
+        end
+        
+            for ChExN=1:size(handles.rawData,1)
+                Spikes.Online_Sorting.channel(ChExN)=ChExN;
+                Spikes.Online_Sorting.samplingRate(ChExN,1)=handles.rec_info.samplingRate;
+                try
+                    Spikes.Online_SpkSort.Units{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/recordings']);
+                    Spikes.Online_SpkSort.SpikeTimes{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/time_samples']);
+                    Spikes.Online_SpkSort.Waveforms{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/waveforms_filtered']);
+                catch
+                    Spikes.Online_SpkSort.Units{ChExN,1}=[];
+                    Spikes.Online_SpkSort.SpikeTimes{ChExN,1}=[];
+                    Spikes.Online_SpkSort.Waveforms{ChExN,1}=[];
+                end
+            end
+        case 'nex'
+        case 'ns6'
+        otherwise
+    end
+end
 %% Spike thresholding 
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1
     waitbar( 0.5, wb, 'Getting spike times from RMS threshold'); 
@@ -549,6 +597,8 @@ if get(handles.RB_ExportRawData,'value')
     fwrite(fileID,handles.rawData,'int16');
     % fprintf(fileID,'%d\n',formatdata);
     fclose(fileID);
+    foo=handles.rawData;
+    save([handles.rec_info.expname '_raw'],'foo','-v7.3'); 
 end
 
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
