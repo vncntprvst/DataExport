@@ -1,4 +1,4 @@
-function data=PreProcData(data,samplingRate,filterOption)
+function [data,channelSelection]=PreProcData(data,samplingRate,filterOption)
 
 % channel string
 chStr= num2str(linspace(1,size(data,1),size(data,1))');
@@ -87,12 +87,14 @@ elseif  strcmp(filterOption{1},'CAR')
     end
     % select channels to use for CAR
     if size(filterOption,2)>1 & strcmp(filterOption{2},'all')
-        ChRef=linspace(1,size(data,1),size(data,1));
+        channelSelection=linspace(1,size(data,1),size(data,1));
+    elseif size(filterOption,2)>1 & ~strcmp(filterOption{2},'all')
+        channelSelection= str2num(filterOption{2});
     else
-        ChRef= listdlg('PromptString',...
+        channelSelection= listdlg('PromptString',...
         'select channels to use for CAR to plot:','ListString',chStr);
     end
-    data=(data-repmat(median(data(ChRef,:),1),[size(data,1),1]));%./mad(faa,1);
+    data=(data-repmat(median(data(channelSelection,:),1),[size(data,1),1]));%./mad(faa,1);
     
 elseif  strcmp(filterOption{1},'norm')
     %% normalization following Pouzat's method

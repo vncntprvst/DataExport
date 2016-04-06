@@ -245,7 +245,7 @@ end
 
 %% Plot pre-proc excerpt
 dataOneSecSample=handles.rawData(handles.keepChannels,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
-dataOneSecSample_preproc=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
+[dataOneSecSample_preproc,handles.channelSelection]=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
 cla(handles.Axes_PreProcessedData); %hold on;
 % set(handles.Axes_PreProcessedData,'Visible','on');
 %     subplot(1,2,2);  hold on;
@@ -355,7 +355,7 @@ switch preprocOption{:}
     case 'BP - CAR (all channels)       ' 
             preprocOption={'CAR','all'};
     case 'BP - CAR'
-            preprocOption={'CAR'};
+            preprocOption={'CAR',num2str(handles.channelSelection)};
     case 'LP - CAR'
             preprocOption={'CAR','LP'};
     case 'Bandpass (500 - 6000)'
@@ -571,34 +571,37 @@ switch handles.rec_info.sys
             end
 end
 
-if get(handles.CB_SpecifyName,'value')==0
-    handles.rec_info.expname=inputdlg('Enter export file name');
-    handles.rec_info.expname=handles.rec_info.expname{:};
-else
-    if get(handles.CB_AddTTLChannel,'value')
-        if isfield(handles.trials,'continuous')
-            TTL_reSampled = handles.trials.continuous - median(handles.trials.continuous);
-            TTL_reSampled = resample(double(TTL_reSampled),30,1);
-            TTL_reSampled = TTL_reSampled(1:size(handles.rawData,2));
-            handles.rawData=[handles.rawData;TTL_reSampled];
-        else %need to create one
-        end
-        
-        handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
-            handles.rec_info.date '_' handles.rec_info.sys '_' ...
-            num2str(size(handles.rawData,1)) 'Ch_SyncCh_'  handles.preprocOption];
-    else
-        handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
-            handles.rec_info.sys '_' num2str(size(handles.rawData,1)) 'Ch_'  handles.preprocOption];
+
+if get(handles.CB_AddTTLChannel,'value')
+    if isfield(handles.trials,'continuous')
+        TTL_reSampled = handles.trials.continuous - median(handles.trials.continuous);
+        TTL_reSampled = resample(double(TTL_reSampled),30,1);
+        TTL_reSampled = TTL_reSampled(1:size(handles.rawData,2));
+        handles.rawData=[handles.rawData;TTL_reSampled];
+    else %need to create one
     end
+%     if isdatetime(handles.rec_info.date)
+%         handles.rec_info.date=datestr(handles.rec_info.date,'yyyy-mm-dd');
+%     end
+    handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
+        handles.rec_info.sys '_' num2str(size(handles.rawData,1)) 'Ch_SyncCh_'  handles.preprocOption];
+else
+    handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
+        handles.rec_info.sys '_' num2str(size(handles.rawData,1)) 'Ch_'  handles.preprocOption];
 end
+
+if get(handles.CB_SpecifyName,'value')==0
+    handles.rec_info.expname=inputdlg('Enter export file name','File Name',1,{handles.rec_info.expname});
+    handles.rec_info.expname=handles.rec_info.expname{:};
+end
+    
 if get(handles.RB_ExportRawData,'value')
     fileID = fopen([handles.rec_info.expname '.dat'],'w');
     fwrite(fileID,handles.rawData,'int16');
     % fprintf(fileID,'%d\n',formatdata);
     fclose(fileID);
-    foo=handles.rawData;
-    save([handles.rec_info.expname '_raw'],'foo','-v7.3'); 
+%     foo=handles.rawData;
+%     save([handles.rec_info.expname '_raw'],'foo','-v7.3'); 
 end
 
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
