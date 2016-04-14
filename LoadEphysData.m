@@ -125,9 +125,32 @@ try
         % not coded yet
     elseif strfind(fname,'.ns')
         %% Blackrock raw data
-        analogChannel = openNSxNew([fname(1:end-1) '2']);
-        Trials.continuous=analogChannel.Data;
+        try
+            analogChannel = openNSxNew([fname(1:end-1) '2']);
+            samplingRate=1000;
+            Trials.continuous=analogChannel.Data;
+        catch
+            analogChannel = openNSxNew([fname(1:end-1) '3']);
+            samplingRate=2000;
+            Trials.continuous=analogChannel.Data;
+        end
         Trials.sampleRate=analogChannel.MetaTags.SamplingFreq;
+        Trials.continuous=Trials.continuous(end,:)-min(Trials.continuous(end,:));
+        TTL_times=uint64(find(diff(Trials.continuous>rms(Trials.continuous)*5)))';
+        if min(diff(TTL_times))<median(diff(TTL_times))-2
+            %remove spurious pulses
+            return
+        end
+        Trials.start=find(diff(Trials.continuous>rms(Trials.continuous)*5)==1);
+        Trials.end=find(diff(Trials.continuous<rms(Trials.continuous)*5)==1);
+        TTL_ID=zeros(size(TTL_times,1),1);
+        if Trials.end(1)-Trials.start(1)>0 %as it should
+            TTL_ID(1:2:end)=1;
+        else
+            TTL_ID(2:2:end)=1;
+        end
+        Trials=ConvTTLtoTrials(TTL_times,samplingRate,TTL_ID);
+        
     end
 catch
     close(wb);

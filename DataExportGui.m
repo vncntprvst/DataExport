@@ -22,7 +22,7 @@ function varargout = DataExportGui(varargin)
 
 % Edit the above text to modify the response to help DataExportGui
 
-% Last Modified by GUIDE v2.5 17-Mar-2016 12:32:22
+% Last Modified by GUIDE v2.5 07-Apr-2016 19:15:14
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -102,7 +102,7 @@ else
     axis_name= @(x) sprintf('Chan %.0f',x);
     
     %% Load data
-    [handles.rec_info,handles.rawData,handles.trials]=LoadEphysData(handles.fname,handles.dname);
+    [handles.rec_info,handles.rawData,handles.Trials]=LoadEphysData(handles.fname,handles.dname);
     % parpool(2)
     % parfor tasknum = 1:2
     %     foo=[];
@@ -300,13 +300,13 @@ function RB_ExportSpikes_OfflineSort_Callback(hObject, eventdata, handles)
 % Hint: get(hObject,'Value') returns toggle state of RB_ExportSpikes_OfflineSort
 
 
-% --- Executes on button press in RB_ExportRawData.
-function RB_ExportRawData_Callback(hObject, eventdata, handles)
-% hObject    handle to RB_ExportRawData (see GCBO)
+% --- Executes on button press in RB_ExportRaw_dat.
+function RB_ExportRaw_dat_Callback(hObject, eventdata, handles)
+% hObject    handle to RB_ExportRaw_dat (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hint: get(hObject,'Value') returns toggle state of RB_ExportRawData
+% Hint: get(hObject,'Value') returns toggle state of RB_ExportRaw_dat
 
 
 % --- Executes on button press in CB_AddTTLChannel.
@@ -481,7 +481,7 @@ if get(handles.RB_ExportSpikes_OfflineSort,'value')==1
 end
 
 %% get clock time (time at which recording started, to sync with TTLs)
-if ~isfield(handles.trials,'startClockTime') | isempty(handles.trials.startClockTime)
+if ~isfield(handles.Trials,'startClockTime') | isempty(handles.Trials.startClockTime)
     waitbar( 0.7, wb, 'Getting clock time');  
     if strfind(handles.fname,'raw.kwd')
         % to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
@@ -489,13 +489,13 @@ if ~isfield(handles.trials,'startClockTime') | isempty(handles.trials.startClock
         % h5readatt(handles.fname,'/recordings/0/','start_time').That
         % start_time happens earlier (like 20ms before). The difference is
         % due to the time it takes to open files
-            handles.trials.startClockTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
-            handles.trials.startClockTime=handles.trials.startClockTime(1);
+            handles.Trials.startClockTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
+            handles.Trials.startClockTime=handles.Trials.startClockTime(1);
 
     elseif strfind(handles.fname,'continuous')
-            handles.trials.startClockTime=handles.rec_info.startClockTime.ts;
+            handles.Trials.startClockTime=handles.rec_info.startClockTime.ts;
     else
-            handles.trials.startClockTime=0; %Recording and TTL times already sync'ed
+            handles.Trials.startClockTime=0; %Recording and TTL times already sync'ed
     end
 end
 %% Export
@@ -573,8 +573,8 @@ end
 
 
 if get(handles.CB_AddTTLChannel,'value')
-    if isfield(handles.trials,'continuous')
-        TTL_reSampled = handles.trials.continuous - median(handles.trials.continuous);
+    if isfield(handles.Trials,'continuous')
+        TTL_reSampled = handles.Trials.continuous - median(handles.Trials.continuous);
         TTL_reSampled = resample(double(TTL_reSampled),30,1);
         TTL_reSampled = TTL_reSampled(1:size(handles.rawData,2));
         handles.rawData=[handles.rawData;TTL_reSampled];
@@ -595,18 +595,20 @@ if get(handles.CB_SpecifyName,'value')==0
     handles.rec_info.expname=handles.rec_info.expname{:};
 end
     
-if get(handles.RB_ExportRawData,'value')
+if get(handles.RB_ExportRaw_dat,'value')
     fileID = fopen([handles.rec_info.expname '.dat'],'w');
     fwrite(fileID,handles.rawData,'int16');
     % fprintf(fileID,'%d\n',formatdata);
     fclose(fileID);
-%     foo=handles.rawData;
-%     save([handles.rec_info.expname '_raw'],'foo','-v7.3'); 
+end
+
+if get(handles.RB_ExportRaw_mat,'value')
+    save([handles.rec_info.expname '_raw'],'-struct','handles','rawData','-v7.3'); 
 end
 
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
-    Trials=handles.trials;
-    save(handles.rec_info.expname,'Spikes','Trials','-v7.3'); 
+    save([handles.rec_info.expname '_spikes'],'Spikes','-v7.3');
+    save([handles.rec_info.expname '_trials'],'-struct','handles','Trials','-v7.3');
 end
 close(wb);
 disp(['took ' num2str(toc) ' seconds to export data']);
@@ -750,3 +752,12 @@ function RB_ExportOnlySample_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of RB_ExportOnlySample
+
+
+% --- Executes on button press in RB_ExportRaw_mat.
+function RB_ExportRaw_mat_Callback(hObject, eventdata, handles)
+% hObject    handle to RB_ExportRaw_mat (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of RB_ExportRaw_mat
