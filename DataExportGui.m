@@ -127,6 +127,7 @@ else
     %% Plot raw data excerpt
     dataOneSecSample=handles.rawData(:,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
     axes(handles.Axes_RawData); hold on;
+    cla(handles.Axes_RawData);
     set(handles.Axes_RawData,'Visible','on');
     %     subplot(1,2,1);
     for ChN=1:size(handles.rawData,1)
@@ -186,8 +187,13 @@ else
     set(handles.Axes_PreProcessedData,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
         'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
         round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
-    set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(max(abs(max(dataOneSecSample_preproc)))*int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
-        cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    try
+        set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(max(abs(max(dataOneSecSample_preproc)))*int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
+            cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    catch
+        set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
+            cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    end
     %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
     axis('tight');box off;
     xlabel(handles.Axes_PreProcessedData,['Processing option: ' preprocOption{1}])
@@ -258,8 +264,13 @@ end
 % set(handles.Axes_PreProcessedData,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
 %     'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
 %     round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
+try
 set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(max(abs(max(dataOneSecSample_preproc)))*int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
     cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+catch
+    set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
+    cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+end
 % %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
 % axis('tight');box off;
 xlabel(handles.Axes_PreProcessedData,['Processing option: ' preprocOption{1}])
@@ -502,12 +513,14 @@ end
 userinfo=UserDirInfo;
 exportDir=regexprep(userinfo.directory,'\\\w+$','\\export');
 waitbar( 0.9, wb, 'Exporting data');
+
 if get(handles.CB_SpecifyDir,'value')==0
     exportDir=uigetdir(exportDir,'Select export directory');
-    cd(exportDir)
+    cd(exportDir);
 else
     cd(exportDir);
 end
+
 % if strfind(handles.rec_info.expname{end}(2:end),'LY') %regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_')
 %     uname='Leeyup';
 % else
@@ -596,7 +609,36 @@ if get(handles.CB_SpecifyName,'value')==0
     handles.rec_info.expname=inputdlg('Enter export file name','File Name',1,{handles.rec_info.expname});
     handles.rec_info.expname=handles.rec_info.expname{:};
 end
-    
+
+% create export folder, go there and save info
+if get(handles.CB_SpecifyDir,'value')==0
+    exportDir=uigetdir('C:\Data\export','Select export directory');
+    cd(exportDir)
+else
+    cd('C:\Data\export');
+    mkdir(handles.rec_info.expname);
+    cd(handles.rec_info.expname);
+end
+
+save([handles.rec_info.expname '_info'],'-struct','handles','rec_info','-v7.3');
+fileID = fopen([handles.rec_info.expname '.txt'],'w'); 
+if ischar(handles.rec_info.date)
+    handles.rec_info.date=regexp(handles.dname,'(?<=\d+_\d+_).+(?=\\)','match');
+    handles.rec_info.date=handles.rec_info.date{:};
+    fprintf(fileID,['%21s\t %' num2str(length(handles.rec_info.date)) 's\r'],...
+        'recording date       ',handles.rec_info.date);
+else
+    fprintf(fileID,['%21s\t %' num2str(length(datestr(handles.rec_info.date))) 's\r'],...
+        'recording date       ',datestr(handles.rec_info.date));
+end
+fprintf(fileID,'%21s\t\t\t %12u\r','sampling rate        ',handles.rec_info.samplingRate);
+fprintf(fileID,'%21s\t\t\t %12u\r','duration (rec. clock)',handles.rec_info.dur);
+fprintf(fileID,'%21s\t\t\t %12.4f\r','duration (s.)        ',handles.rec_info.dur/handles.rec_info.samplingRate);
+fprintf(fileID,'%21s\t\t\t %12u\r','number of rec. chans ',handles.rec_info.numRecChan);
+fprintf(fileID,['%21s\t\t %' num2str(length(num2str(handles.keepChannels'))) 's\r'],...
+    'exported channels    ',num2str(handles.keepChannels'));
+fclose(fileID);
+
 if get(handles.RB_ExportRaw_dat,'value')
     fileID = fopen([handles.rec_info.expname '.dat'],'w');
     fwrite(fileID,handles.rawData,'int16');

@@ -95,7 +95,7 @@ try
         rec.dur=data.MetaTags.DataPoints;
         rec.samplingRate=data.MetaTags.SamplingFreq;
         rec.numRecChan=data.MetaTags.ChannelCount;  %number of raw data channels.
-        rec.date=[data.MetaTags.DateTime(1:10) '_' data.MetaTags.DateTime(21:27)];
+        rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match')) '_' cell2mat(regexp(data.MetaTags.DateTime,'(?<= )\d.+','match'))];
         rec.date=regexprep(rec.date,'\W','_');
         % keep only raw data in data variable
         data=data.Data;
@@ -141,16 +141,19 @@ try
             %remove spurious pulses
             return
         end
-        Trials.start=find(diff(Trials.continuous>rms(Trials.continuous)*5)==1);
-        Trials.end=find(diff(Trials.continuous<rms(Trials.continuous)*5)==1);
-        TTL_ID=zeros(size(TTL_times,1),1);
-        if Trials.end(1)-Trials.start(1)>0 %as it should
-            TTL_ID(1:2:end)=1;
-        else
-            TTL_ID(2:2:end)=1;
+        if mode(diff(TTL_times))==1 | isempty(TTL_times)%no trials, just artifacts
+            [Trials.start, Trials.end,TTL_ID,Trials]=deal(0);
+        else            
+            Trials.start=find(diff(Trials.continuous>rms(Trials.continuous)*5)==1);
+            Trials.end=find(diff(Trials.continuous<rms(Trials.continuous)*5)==1);
+            TTL_ID=zeros(size(TTL_times,1),1);
+            if Trials.end(1)-Trials.start(1)>0 %as it should
+                TTL_ID(1:2:end)=1;
+            else
+                TTL_ID(2:2:end)=1;
+            end
+            Trials=ConvTTLtoTrials(TTL_times,samplingRate,TTL_ID);
         end
-        Trials=ConvTTLtoTrials(TTL_times,samplingRate,TTL_ID);
-        
     end
 catch
     close(wb);
