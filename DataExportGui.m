@@ -54,9 +54,9 @@ function DataExportGui_OpeningFcn(hObject, eventdata, handles, varargin)
 
 % Choose default command line output for DataExportGui
 handles.output = hObject;
-
+userinfo=UserDirInfo;
 %% get most recently changed data folder
-dataDir='C:\Data\';
+dataDir=userinfo.directory;
 dataDirListing=dir(dataDir);
 %removing dots
 dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
@@ -66,7 +66,7 @@ dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x)...
     regexp('Behav | DB | ImpedanceChecks | Video | export | example-klusters_neuroscope',x),...
     {dataDirListing.name},'UniformOutput',false)));
 [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
-recentDataFolder=[dataDir dataDirListing(fDateIdx(1)).name '\'];
+recentDataFolder=[dataDir '\' dataDirListing(fDateIdx(1)).name '\'];
 %get most recent data folder in that folder if there is one 
 dataDirListing=dir(recentDataFolder);
 %removing dots
@@ -74,7 +74,7 @@ dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
     {dataDirListing.name},'UniformOutput',false)));
 if size(dataDirListing,1)>0
     [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
-    recentDataFolder=[recentDataFolder dataDirListing(fDateIdx(1)).name '\'];
+    recentDataFolder=[recentDataFolder '\' dataDirListing(fDateIdx(1)).name '\'];
 end
 
 %% Get file path
@@ -499,18 +499,20 @@ if ~isfield(handles.Trials,'startClockTime') | isempty(handles.Trials.startClock
     end
 end
 %% Export
+userinfo=UserDirInfo;
+exportDir=regexprep(userinfo.directory,'\\\w+$','\\export');
 waitbar( 0.9, wb, 'Exporting data');
 if get(handles.CB_SpecifyDir,'value')==0
-    exportDir=uigetdir('C:\Data\export','Select export directory');
+    exportDir=uigetdir(exportDir,'Select export directory');
     cd(exportDir)
 else
-    cd('C:\Data\export');
+    cd(exportDir);
 end
-if strfind(handles.rec_info.expname{end}(2:end),'LY') %regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_')
-    uname='Leeyup';
-else
-    uname=getenv('username');
-end
+% if strfind(handles.rec_info.expname{end}(2:end),'LY') %regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_')
+%     uname='Leeyup';
+% else
+%     uname=getenv('username');
+% end
 
 if regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_') %Open Ephys date format
     dateStart=regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_');
