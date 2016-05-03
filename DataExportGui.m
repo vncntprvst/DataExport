@@ -511,15 +511,7 @@ if ~isfield(handles.Trials,'startClockTime') | isempty(handles.Trials.startClock
 end
 %% Export
 userinfo=UserDirInfo;
-exportDir=regexprep(userinfo.directory,'\\\w+$','\\export');
 waitbar( 0.9, wb, 'Exporting data');
-
-if get(handles.CB_SpecifyDir,'value')==0
-    exportDir=uigetdir(exportDir,'Select export directory');
-    cd(exportDir);
-else
-    cd(exportDir);
-end
 
 % if strfind(handles.rec_info.expname{end}(2:end),'LY') %regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_')
 %     uname='Leeyup';
@@ -611,11 +603,12 @@ if get(handles.CB_SpecifyName,'value')==0
 end
 
 % create export folder, go there and save info
+exportDir=regexprep(userinfo.directory,'\\\w+$','\\export');
 if get(handles.CB_SpecifyDir,'value')==0
-    exportDir=uigetdir('C:\Data\export','Select export directory');
+    exportDir=uigetdir(exportDir,'Select export directory');
     cd(exportDir)
 else
-    cd('C:\Data\export');
+    cd(exportDir);
     mkdir(handles.rec_info.expname);
     cd(handles.rec_info.expname);
 end
