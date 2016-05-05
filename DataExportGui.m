@@ -66,7 +66,7 @@ dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x)...
     regexp('Behav | DB | ImpedanceChecks | Video | export | example-klusters_neuroscope',x),...
     {dataDirListing.name},'UniformOutput',false)));
 [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
-recentDataFolder=[dataDir '\' dataDirListing(fDateIdx(1)).name '\'];
+recentDataFolder=[dataDir userinfo.slash dataDirListing(fDateIdx(1)).name userinfo.slash];
 %get most recent data folder in that folder if there is one 
 dataDirListing=dir(recentDataFolder);
 %removing dots
@@ -74,7 +74,7 @@ dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
     {dataDirListing.name},'UniformOutput',false)));
 if size(dataDirListing,1)>0
     [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
-    recentDataFolder=[recentDataFolder '\' dataDirListing(fDateIdx(1)).name '\'];
+    recentDataFolder=[recentDataFolder userinfo.slash dataDirListing(fDateIdx(1)).name userinfo.slash];
 end
 
 %% Get file path
@@ -91,15 +91,24 @@ guidata(hObject, handles);
 
 %% Load data function
 function handles=LoadData(handles)
+    % function declaration
+    axis_name= @(x) sprintf('Chan %.0f',x);
 if strcmp(handles.fname,'')
     set(handles.FileName,'string','')
 else
     cd(handles.dname);
-    set(handles.FileName,'string',[handles.dname '\' handles.fname])
+    userinfo=UserDirInfo;
+    set(handles.FileName,'string',[handles.dname handles.fname])
     % disp(['loading ' dname fname]);
-    
-    % function declaration
-    axis_name= @(x) sprintf('Chan %.0f',x);
+
+    % load channel mapping
+    subjectName=regexp(strrep(handles.dname,'_','-'),'(?<=\\)\w+\d+','match');
+    load([userinfo.probemap userinfo.slash 'ImplantList.mat']);
+    probeID=implantList(~cellfun('isempty',...
+        strfind(strrep({implantList.Mouse},'-',''),subjectName{:}))).Probe;
+    load([userinfo.probemap userinfo.slash probeID '.mat']);
+    wsVars=who;
+    handles.probeLayout=eval(wsVars{~cellfun('isempty',strfind(wsVars,'Probe'))});
     
     %% Load data
     [handles.rec_info,handles.rawData,handles.Trials]=LoadEphysData(handles.fname,handles.dname);
@@ -118,10 +127,22 @@ else
     %         end
     %         close(wb);
     %     elseif tasknum == 2
-    %         [foo,bla,bli]=LoadEphysData(handles.fname,handles.dname);
+    %         [handles.rec_info,handles.rawData,handles.Trials]=LoadEphysData(handles.fname,handles.dname);
     %     end
     % end
     
+    %map channels to electrodes
+    switch handles.rec_info.expname{2}(2:end)
+        case 'OpenEphys'
+            [~,chMap]=sort([handles.probeLayout.OEChannel]);[~,chMap]=sort(chMap);
+            handles.rawData=handles.rawData(chMap,:);   
+        case 'Blackrock'
+            [~,chMap]=sort([handles.probeLayout.BlackrockChannel]);[~,chMap]=sort(chMap);
+            handles.rawData=handles.rawData(chMap,:);
+        otherwise
+            %stay as it is
+            disp('no channel mapping available')
+    end
     handles.keepChannels=(1:size(handles.rawData,1))';
     
     %% Plot raw data excerpt
@@ -129,18 +150,25 @@ else
     axes(handles.Axes_RawData); hold on;
     cla(handles.Axes_RawData);
     set(handles.Axes_RawData,'Visible','on');
+    BaseShift=int32(max(abs(max(dataOneSecSample))));
     %     subplot(1,2,1);
     for ChN=1:size(handles.rawData,1)
-        plot(handles.Axes_RawData,double(dataOneSecSample(ChN,:))+(max(abs(mean(dataOneSecSample)))*(ChN-1))-...
-            mean(mean(dataOneSecSample(ChN,:))));
+        ShiftUp=(BaseShift*ChN)-...
+            int32(median(median(dataOneSecSample(ChN,:))));
+        plot(handles.Axes_RawData,int32(dataOneSecSample(ChN,:))+...
+            ShiftUp);
     end
     set(handles.Axes_RawData,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
         'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
         round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
-    set(handles.Axes_RawData,'ytick',linspace(0,double(max(abs(mean(dataOneSecSample)))*(ChN-1)),size(handles.rawData,1)),'yticklabel',...
-        cellfun(axis_name, num2cell(1:size(handles.rawData,1)), 'UniformOutput', false))
+    set(handles.Axes_RawData,'ytick',linspace(single(BaseShift),single(ShiftUp+...
+            int32(median(median(dataOneSecSample(ChN,:))))),...
+            single(size(dataOneSecSample,1))),'yticklabel',...
+            cellfun(axis_name, num2cell(1:size(dataOneSecSample,1)), 'UniformOutput', false))
     %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
     axis('tight');box off;
+    set(handles.Axes_RawData,'ylim',[-1000,BaseShift...
+    *int32(size(handles.keepChannels,1))+BaseShift]);
     xlabel(handles.Axes_RawData,'2 sec mid-recording')
     ylabel(handles.Axes_RawData,'Raw signal')
     set(handles.Axes_RawData,'Color','white','FontSize',12,'FontName','calibri');
@@ -179,16 +207,21 @@ else
     dataOneSecSample_preproc=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
     axes(handles.Axes_PreProcessedData); hold on;
     set(handles.Axes_PreProcessedData,'Visible','on');
+    BaseShift=int32(max(abs(max(dataOneSecSample_preproc))));
     %     subplot(1,2,2);  hold on;
     for ChN=1:size(handles.rawData,1)
-        plot(handles.Axes_PreProcessedData,(dataOneSecSample_preproc(ChN,:))+(max(abs(max(dataOneSecSample_preproc)))*(ChN-1))-...
-            mean(mean(dataOneSecSample_preproc(ChN,:))));
+        ShiftUp=(BaseShift*ChN)-...
+            int32(median(median(dataOneSecSample_preproc(ChN,:))));
+        plot(handles.Axes_PreProcessedData,int32(dataOneSecSample_preproc(ChN,:))+...
+            ShiftUp);
     end
     set(handles.Axes_PreProcessedData,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
         'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
         round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
     try
-        set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(max(abs(max(dataOneSecSample_preproc)))*int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
+        set(handles.Axes_PreProcessedData,'ytick',linspace(single(BaseShift),single(ShiftUp+...
+            int32(median(median(dataOneSecSample_preproc(ChN,:))))),...
+            single(size(dataOneSecSample_preproc,1))),'yticklabel',...
             cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
     catch
         set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
@@ -196,6 +229,8 @@ else
     end
     %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
     axis('tight');box off;
+    set(handles.Axes_PreProcessedData,'ylim',[-1000,BaseShift...
+    *int32(size(handles.keepChannels,1))+BaseShift]);
     xlabel(handles.Axes_PreProcessedData,['Processing option: ' preprocOption{1}])
     ylabel(handles.Axes_PreProcessedData,'Pre-processed signal')
     set(handles.Axes_PreProcessedData,'Color','white','FontSize',12,'FontName','calibri');
@@ -255,17 +290,23 @@ dataOneSecSample=handles.rawData(handles.keepChannels,round(size(handles.rawData
 cla(handles.Axes_PreProcessedData); %hold on;
 % set(handles.Axes_PreProcessedData,'Visible','on');
 %     subplot(1,2,2);  hold on;
-set(handles.Axes_PreProcessedData,'ylim',[-1000,double(max(abs(max(dataOneSecSample_preproc)))*int16(size(handles.keepChannels,1)-1))+1000])
+BaseShift=int32(max(abs(max(dataOneSecSample_preproc))));
+set(handles.Axes_PreProcessedData,'ylim',[-1000,BaseShift...
+    *int32(size(handles.keepChannels,1))+BaseShift])
 
 for ChN=1:size(handles.keepChannels,1)
-    plot(handles.Axes_PreProcessedData,(dataOneSecSample_preproc(ChN,:))+(max(abs(max(dataOneSecSample_preproc)))*(ChN-1))-...
-        mean(mean(dataOneSecSample_preproc(ChN,:))));
+    ShiftUp=(BaseShift*ChN)-...
+        int32(median(median(dataOneSecSample_preproc(ChN,:))));
+    plot(handles.Axes_PreProcessedData,int32(dataOneSecSample_preproc(ChN,:))+...
+        ShiftUp);
 end
 % set(handles.Axes_PreProcessedData,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
 %     'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
 %     round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
 try
-set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(max(abs(max(dataOneSecSample_preproc)))*int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
+set(handles.Axes_PreProcessedData,'ytick',linspace(single(BaseShift),single(ShiftUp+...
+    int32(median(median(dataOneSecSample_preproc(ChN,:))))),...
+    single(size(dataOneSecSample_preproc,1))),'yticklabel',...
     cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
 catch
     set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
