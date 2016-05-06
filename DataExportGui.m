@@ -132,7 +132,7 @@ else
     % end
     
     %map channels to electrodes
-    switch handles.rec_info.expname{2}(2:end)
+    switch handles.rec_info.expname{3}(2:end)
         case 'OpenEphys'
             [~,chMap]=sort([handles.probeLayout.OEChannel]);[~,chMap]=sort(chMap);
             handles.rawData=handles.rawData(chMap,:);   
@@ -206,6 +206,7 @@ else
     
     dataOneSecSample_preproc=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
     axes(handles.Axes_PreProcessedData); hold on;
+    cla(handles.Axes_PreProcessedData);
     set(handles.Axes_PreProcessedData,'Visible','on');
     BaseShift=int32(max(abs(max(dataOneSecSample_preproc))));
     %     subplot(1,2,2);  hold on;
