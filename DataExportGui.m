@@ -22,7 +22,7 @@ function varargout = DataExportGui(varargin)
 
 % Edit the above text to modify the response to help DataExportGui
 
-% Last Modified by GUIDE v2.5 07-Apr-2016 19:15:14
+% Last Modified by GUIDE v2.5 09-May-2016 12:59:52
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -386,6 +386,7 @@ if get(handles.CB_ExportWhichChannel,'value')==0
     handles.rawData=handles.rawData(handles.keepChannels,:);
 end
 
+% export only excerpt
 if get(handles.RB_ExportOnlySample,'value')==1
     if get(handles.LB_ExportSampleLocation,'value')==1
         handles.rawData=handles.rawData(:,1:30000*60*str2double(get(handles.TxEdit_SampleDuration,'String')));
@@ -396,6 +397,10 @@ if get(handles.RB_ExportOnlySample,'value')==1
     elseif get(handles.LB_ExportSampleLocation,'value')==3
         handles.rawData=handles.rawData(:,end-30000*60*str2double(get(handles.TxEdit_SampleDuration,'String')):end);
     end
+end
+if get(handles.RB_ExportWithNoSignalCutout,'value')==1
+    signalRegions=bwlabel(diff(handles.rawData(1,:)));
+    handles.rawData=handles.rawData(:,1:length(signalRegions)-find(signalRegions(end:-1:1)>0,1));
 end
 
 %% pre-process data
@@ -620,7 +625,6 @@ switch handles.rec_info.sys
             end
 end
 
-
 if get(handles.CB_AddTTLChannel,'value')
     if isfield(handles.Trials,'continuous')
         TTL_reSampled = handles.Trials.continuous - median(handles.Trials.continuous);
@@ -640,8 +644,14 @@ else
 end
 
 if get(handles.CB_SpecifyName,'value')==0
-    handles.rec_info.expname=inputdlg('Enter export file name','File Name',1,{handles.rec_info.expname});
-    handles.rec_info.expname=handles.rec_info.expname{:};
+    customFileName=[cell2mat(regexp(handles.fname,'\w+(?=[a-z]\d+.\w+$)','match')) '_' ...
+    cell2mat(regexp(handles.rec_info.expname,['(?<=' cell2mat(...
+    regexp(handles.rec_info.expname,['\w+(?=' handles.rec_info.sys ')'],'match')) ')\w+'],...
+    'match'))]; % ^^    
+    handles.rec_info.exportname=inputdlg('Enter export file name','File Name',1,{customFileName});
+    handles.rec_info.exportname=handles.rec_info.exportname{:};
+else
+    handles.rec_info.exportname=handles.rec_info.expname;
 end
 
 % create export folder, go there and save info
@@ -651,12 +661,14 @@ if get(handles.CB_SpecifyDir,'value')==0
     cd(exportDir)
 else
     cd(exportDir);
-    mkdir(handles.rec_info.expname);
-    cd(handles.rec_info.expname);
+    if ~isdir(cell2mat(regexp(handles.rec_info.expname,'\w+(?=_\w+$)','match')))
+        mkdir(cell2mat(regexp(handles.rec_info.expname,'\w+(?=_\w+$)','match'))); %create dir name without preprocOption
+    end
+    cd(cell2mat(regexp(handles.rec_info.expname,'\w+(?=_\w+$)','match')));
 end
 
-save([handles.rec_info.expname '_info'],'-struct','handles','rec_info','-v7.3');
-fileID = fopen([handles.rec_info.expname '.txt'],'w'); 
+save([handles.rec_info.exportname '_info'],'-struct','handles','rec_info','-v7.3');
+fileID = fopen([handles.rec_info.exportname '.txt'],'w'); 
 if ischar(handles.rec_info.date)
     handles.rec_info.date=regexp(handles.dname,'(?<=\d+_\d+_).+(?=\\)','match');
     handles.rec_info.date=handles.rec_info.date{:};
@@ -675,19 +687,19 @@ fprintf(fileID,['%21s\t\t %' num2str(length(num2str(handles.keepChannels'))) 's\
 fclose(fileID);
 
 if get(handles.RB_ExportRaw_dat,'value')
-    fileID = fopen([handles.rec_info.expname '.dat'],'w');
+    fileID = fopen([handles.rec_info.exportname '.dat'],'w');
     fwrite(fileID,handles.rawData,'int16');
     % fprintf(fileID,'%d\n',formatdata);
     fclose(fileID);
 end
 
 if get(handles.RB_ExportRaw_mat,'value')
-    save([handles.rec_info.expname '_raw'],'-struct','handles','rawData','-v7.3'); 
+    save([handles.rec_info.exportname '_raw'],'-struct','handles','rawData','-v7.3'); 
 end
 
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
-    save([handles.rec_info.expname '_spikes'],'Spikes','-v7.3');
-    save([handles.rec_info.expname '_trials'],'-struct','handles','Trials','-v7.3');
+    save([handles.rec_info.exportname '_spikes'],'Spikes','-v7.3');
+    save([handles.rec_info.exportname '_trials'],'-struct','handles','Trials','-v7.3');
 end
 close(wb);
 disp(['took ' num2str(toc) ' seconds to export data']);
@@ -840,3 +852,12 @@ function RB_ExportRaw_mat_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of RB_ExportRaw_mat
+
+
+% --- Executes on button press in RB_ExportWithNoSignalCutout.
+function RB_ExportWithNoSignalCutout_Callback(hObject, eventdata, handles)
+% hObject    handle to RB_ExportWithNoSignalCutout (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of RB_ExportWithNoSignalCutout
