@@ -1,28 +1,16 @@
 function varargout = DataExportGui(varargin)
 % DATAEXPORTGUI MATLAB code for DataExportGui.fig
-%      DATAEXPORTGUI, by itself, creates a new DATAEXPORTGUI or raises the existing
-%      singleton*.
+% Exports ephys data from Open Ephys / Blackrock / TBSI systems
+%     Data can be exported as 
+%         * continuous data (raw or pre-processed), in .dat and/or .mat format'
+%         * spike data, from online sorting or offline threshold
+%     In addition, parameter file for offline spike sorting can be generated
+%     Can also export excerpt, instead of full data file
 %
-%      H = DATAEXPORTGUI returns the handle to a new DATAEXPORTGUI or the handle to
-%      the existing singleton*.
-%
-%      DATAEXPORTGUI('CALLBACK',hObject,eventData,handles,...) calls the local
-%      function named CALLBACK in DATAEXPORTGUI.M with the given input arguments.
-%
-%      DATAEXPORTGUI('Property','Value',...) creates a new DATAEXPORTGUI or raises the
-%      existing singleton*.  Starting from the left, property value pairs are
-%      applied to the GUI before DataExportGui_OpeningFcn gets called.  An
-%      unrecognized property name or invalid value makes property application
-%      stop.  All inputs are passed to DataExportGui_OpeningFcn via varargin.
-%
-%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
-%      instance to run (singleton)".
-%
-% See also: GUIDE, GUIDATA, GUIHANDLES
-
-% Edit the above text to modify the response to help DataExportGui
-
-% Last Modified by GUIDE v2.5 09-May-2016 12:59:52
+% When opening, will use most recent folder in user's data directory as
+% root
+% Written by Vincent Prevosto, 2016
+% Last Modified by GUIDE v2.5 13-May-2016 16:11:34
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -359,7 +347,7 @@ function RB_ExportRaw_dat_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hint: get(hObject,'Value') returns toggle state of RB_ExportRaw_dat
+set(handles.CB_CreateParamsFile,'value',get(handles.RB_ExportRaw_dat,'value'));
 
 
 % --- Executes on button press in CB_AddTTLChannel.
@@ -701,6 +689,16 @@ if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportS
     save([handles.rec_info.exportname '_spikes'],'Spikes','-v7.3');
     save([handles.rec_info.exportname '_trials'],'-struct','handles','Trials','-v7.3');
 end
+
+if get(handles.CB_CreateParamsFile,'value')==1
+    [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,'paramsfile');
+    if status~=1
+        disp('problem generating the parameter file')
+    else
+        disp(cmdout)
+    end
+end
+
 close(wb);
 disp(['took ' num2str(toc) ' seconds to export data']);
 
@@ -861,3 +859,12 @@ function RB_ExportWithNoSignalCutout_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of RB_ExportWithNoSignalCutout
+
+
+% --- Executes on button press in CB_CreateParamsFile.
+function CB_CreateParamsFile_Callback(hObject, eventdata, handles)
+% hObject    handle to CB_CreateParamsFile (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of CB_CreateParamsFile
