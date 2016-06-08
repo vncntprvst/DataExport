@@ -91,6 +91,12 @@ else
 
     % load channel mapping
     subjectName=regexp(strrep(handles.dname,'_','-'),'(?<=\\)\w+\d+','match');
+    if isempty(subjectName)
+        subjectName=regexp(strrep(handles.fname,'_','-'),'^\w+\d+','match');
+        if isempty(subjectName)
+           subjectName=inputdlg('Enter subject name','Subject Name',1,{handles.fname});
+        end
+    end
     load([userinfo.probemap userinfo.slash 'ImplantList.mat']);
     probeID=implantList(~cellfun('isempty',...
         strfind(strrep({implantList.Mouse},'-',''),subjectName{:}))).Probe;
@@ -120,7 +126,7 @@ else
     % end
     
     %map channels to electrodes
-    switch handles.rec_info.expname{3}(2:end)
+    switch handles.rec_info.expname{cell2mat(cellfun(@(x) strfind(x,'raw'), handles.rec_info.expname,'UniformOutput',false))+1}(2:end)
         case 'OpenEphys'
             [~,chMap]=sort([handles.probeLayout.OEChannel]);[~,chMap]=sort(chMap);
             handles.rawData=handles.rawData(chMap,:);   
