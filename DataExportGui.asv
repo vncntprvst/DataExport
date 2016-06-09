@@ -461,7 +461,7 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
                 try
                     Spikes.Online_Sorting.Units{ChExN,1}=SpikeData.Data.Spikes.Unit(SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
                     Spikes.Online_Sorting.SpikeTimes{ChExN,1}=SpikeData.Data.Spikes.TimeStamp(SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
-                    Spikes.Online_Sorting.Waveforms{ChExN,1}=SpikeData.Data.Spikes.Waveform(:,SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
+                    Spikes.Online_Sorting.Waveforms{ChExN,1}=SpikeData.Data.Spikes.Waveform(SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
                 catch
                     Spikes.Online_Sorting.Units{ChExN,1}=[];
                     Spikes.Online_Sorting.SpikeTimes{ChExN,1}=[];
@@ -745,11 +745,11 @@ function CB_SpecifyName_Callback(hObject, eventdata, handles)
 
 %% --- Executes on button press in PB_SpikePanel.
 function PB_SpikePanel_Callback(hObject, eventdata, handles)
-handles.exportdir=hObject.UserData;
+hObject.UserData
 hfields = fieldnames(handles);
 hdata = struct2cell(handles);
 hkeep = logical(cell2mat(cellfun(@(x) sum(~cellfun('isempty',...
-    strfind({'fname';'dname';'rec_info';'Trials';'exportdir'},x))),...
+    strfind({'fname';'dname';'rec_info';'Trials'},x))),...
     hfields,'UniformOutput', false)));
 htransfer = cell2struct(hdata(hkeep), hfields(hkeep));
 
