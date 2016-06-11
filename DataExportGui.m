@@ -427,6 +427,9 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
             RawInfo=h5info('experiment1_100.raw.kwd','/recordings/0/data');
             RecDur=RawInfo.Dataspace.Size;
             
+            %Keep info on ADC resolution 
+%             Spikes.Online_Sorting.Resolution=
+            
             %Keep list of channels with > 1Hz firing rate
             GoodChans=cell(size(ChanInfo.Groups.Groups,1),1);
             for ChExN=1:size(ChanInfo.Groups.Groups,1)
@@ -450,7 +453,9 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
             end
         case 'nex'
         case 'ns6'
-            SpikeData = openNEV([handles.dname handles.fname(1:end-3) 'nev']);
+            SpikeData = openNEV([handles.dname handles.fname(1:end-3) 'nev']); 
+            % ADC resolution is 0.25uV per bit. Divide values by 4 to convert to uV 
+            Spikes.Online_Sorting.Resolution={0.25, 'uV per bit'};
             GoodChans=unique(SpikeData.Data.Spikes.Electrode);
             if size(handles.rawData,1)~=length(GoodChans)
                 disp('not as many spiking channels as raw data')
@@ -459,7 +464,7 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
                 Spikes.Online_Sorting.electrode(ChExN)=ChExN;
                 Spikes.Online_Sorting.samplingRate(ChExN,1)=SpikeData.MetaTags.SampleRes;
                 try
-                    Spikes.Online_Sorting.Units{ChExN,1}=SpikeData.Data.Spikes.Unit(SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
+                    Spikes.Online_Sorting.Units{ChExN,1}=int8(SpikeData.Data.Spikes.Unit(SpikeData.Data.Spikes.Electrode==GoodChans(ChExN)));
                     Spikes.Online_Sorting.SpikeTimes{ChExN,1}=SpikeData.Data.Spikes.TimeStamp(SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
                     Spikes.Online_Sorting.Waveforms{ChExN,1}=SpikeData.Data.Spikes.Waveform(:,SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
                 catch
