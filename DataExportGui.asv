@@ -633,14 +633,10 @@ end
 if get(handles.CB_SpecifyName,'value')==0
     fNameBegin=cell2mat(regexp(handles.fname,'\w+(?=([a-z]|\_)\d+\.\w+$)','match'));
     fNameEnds=cell2mat(regexp(handles.rec_info.expname,['(?<=' cell2mat(...
-        regexp(handles.rec_info.expname,['\w+(?=' handles.rec_info.sys ')'],'match')) ')\w+'],...
-        'match')); % ^^
-    if regexp(handles.fname,['(?<=' fNameBegin ')\_\d+']) %for BR recordings mostly
-        sessionRecNum=cell2mat(regexp(handles.fname,['(?<=' fNameBegin '\_)\d'],'match'));
-        customFileName=[fNameBegin sessionRecNum '_' fNameEnds];
-    else
-        customFileName=[fNameBegin '_' fNameEnds];
-    end
+    regexp(handles.rec_info.expname,['\w+(?=' handles.rec_info.sys ')'],'match')) ')\w+'],...
+    'match'));
+    if regexp(handles.fname,['(?<=' fNameBegin ')\_\d+'],'match'
+    customFileName=[fNameBegin '_' fNameEnds]; % ^^    
     handles.rec_info.exportname=inputdlg('Enter export file name','File Name',1,{customFileName});
     handles.rec_info.exportname=handles.rec_info.exportname{:};
 else
