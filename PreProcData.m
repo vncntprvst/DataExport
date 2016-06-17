@@ -328,6 +328,13 @@ elseif strcmp(filterOption{1},'multifilt')
     %     filtData{1} = filter(b,a,single([adjustSample zeros(1,delay{1})]));
     %     filtData{1}=filtData{1}( delay{1}+1:length(adjustSample)+delay{1});
     %     figure; plot(filtData{1}(1,4400:5450));
+elseif  strcmp(filterOption{1},'CAR_subset')
+    %% common average referencing  on subset
+    % select channels to use for CAR
+        channelSelection= listdlg('PromptString',...
+        'select channels to use for CAR to plot:','ListString',chStr);
+    data(channelSelection,:)=(data(channelSelection,:)-...
+        repmat(median(data(channelSelection,:),1),[size(data(channelSelection,:),1),1]));%./mad(faa,1);
 end
 
 set(0,'defaultfigureposition', defaultFigPos);

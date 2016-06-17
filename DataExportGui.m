@@ -9,7 +9,7 @@ function varargout = DataExportGui(varargin)
 %
 % When opening, will use most recent folder in user's data directory as root
 % Written by Vincent Prevosto, 2016
-% Last Modified by GUIDE v2.5 13-May-2016 16:11:34
+% Last Modified by GUIDE v2.5 17-Jun-2016 11:59:27
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -191,6 +191,8 @@ else
             preprocOption={'movav_sub'};
         case 'Multi-step filtering'
             preprocOption={'multifilt'};
+        case 'CAR subset only'
+            preprocOption={'CAR_subset'};
     end
     
     dataOneSecSample_preproc=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
@@ -243,16 +245,16 @@ preprocOption=preprocMenu(get(hObject,'value'));
 switch preprocOption{:}
     case 'No pre-processing'
         preprocOption={'nopp'};
-    case 'BP - CAR (all channels)       ' 
-            preprocOption={'CAR','all'};
+    case 'BP - CAR (all channels)       '
+        preprocOption={'CAR','all'};
     case 'BP - CAR'
-            preprocOption={'CAR'};
+        preprocOption={'CAR'};
     case 'LP - CAR'
-            preprocOption={'CAR','LP'};
+        preprocOption={'CAR','LP'};
     case 'Bandpass (500 - 6000)'
-        preprocOption={'bandpass'}; 
+        preprocOption={'bandpass'};
     case 'Bandpass - other'
-        preprocOption={'bandpass','select'}; 
+        preprocOption={'bandpass','select'};
     case 'Normalization'
         preprocOption={'norm'};
     case 'Differential filtering'
@@ -265,6 +267,8 @@ switch preprocOption{:}
         preprocOption={'movav_sub'};
     case 'Multi-step filtering'
         preprocOption={'multifilt'};
+    case 'CAR subset only'
+        preprocOption={'CAR_subset'};
 end
 
 %% Plot pre-proc excerpt
@@ -396,6 +400,8 @@ switch preprocOption{:}
         preprocOption={'movav_sub'};
     case 'Multi-step filtering'
         preprocOption={'multifilt'};
+    case 'CAR subset only'
+        preprocOption={'CAR_subset'};
 end
 handles.preprocOption=preprocOption{1};
 waitbar( 0.1, wb, ['Pre-processing Data: ' handles.preprocOption]);  
@@ -647,7 +653,7 @@ else
     handles.rec_info.exportname=handles.rec_info.expname;
 end
 
-% create export folder, go there and save info
+%% create export folder (if needed), go there and save info
 exportDir=regexprep(userinfo.directory,'\\\w+$','\\export');
 if get(handles.CB_SpecifyDir,'value')==0
     exportDir=uigetdir(exportDir,'Select export directory');
@@ -705,6 +711,13 @@ if get(handles.CB_CreateParamsFile,'value')==1
     end
 end
 
+cd(handles.dname)
+if get(handles.RB_ExportRaw_NEV,'value') 
+   data = openNSxNew([handles.dname handles.fname]);
+   data.Data=flipud(handles.rawData);
+   saveNSx(data,[handles.rec_info.exportname '_CAR' handles.fname(end-3:end)])
+end
+
 close(wb);
 disp(['took ' num2str(toc) ' seconds to export data']);
 
@@ -756,11 +769,11 @@ function CB_SpecifyName_Callback(hObject, eventdata, handles)
 
 %% --- Executes on button press in PB_SpikePanel.
 function PB_SpikePanel_Callback(hObject, eventdata, handles)
-handles.exportdir=hObject.UserData;
+handles.exportDir=hObject.UserData;
 hfields = fieldnames(handles);
 hdata = struct2cell(handles);
 hkeep = logical(cell2mat(cellfun(@(x) sum(~cellfun('isempty',...
-    strfind({'fname';'dname';'rec_info';'Trials';'exportdir'},x))),...
+    strfind({'fname';'dname';'rec_info';'Trials';'exportDir'},x))),...
     hfields,'UniformOutput', false)));
 htransfer = cell2struct(hdata(hkeep), hfields(hkeep));
 
@@ -834,3 +847,16 @@ function RB_ExportWithNoSignalCutout_Callback(hObject, eventdata, handles)
 function CB_CreateParamsFile_Callback(hObject, eventdata, handles)
 
 % Hint: get(hObject,'Value') returns toggle state of CB_CreateParamsFile
+
+
+% --- Executes on button press in RB_ExportRaw_NEV.
+function RB_ExportRaw_NEV_Callback(hObject, eventdata, handles)
+if get(handles.RB_ExportRaw_NEV,'value')
+    set(handles.RB_ExportSpikes_OnlineSort,'value',0);
+    set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+    set(handles.RB_ExportRaw_dat,'value',0);
+    set(handles.RB_ExportRaw_mat,'value',0); 
+    set(handles.CB_CreateParamsFile,'value',0);
+end
+
+
