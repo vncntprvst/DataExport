@@ -437,7 +437,7 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
 %             Spikes.Online_Sorting.Resolution=
             
             %Keep list of channels with > 1Hz firing rate
-            GoodChans=cell(size(ChanInfo.Groups.Groups,1),1);
+%             GoodChans=cell(size(ChanInfo.Groups.Groups,1),1);
             for ChExN=1:size(ChanInfo.Groups.Groups,1)
                 if ChanInfo.Groups.Groups(ChExN).Datasets(2).Dataspace.Size/(RecDur(2)/handles.rec_info.samplingRate)>1
                     Spikes.Online_Sorting.GoodChans(ChExN)=regexp(ChanInfo.Groups.Groups(ChExN).Name,'\d+$','match');
@@ -448,31 +448,42 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
                 Spikes.Online_Sorting.electrode(ChExN)=ChExN;
                 Spikes.Online_Sorting.samplingRate(ChExN,1)=handles.rec_info.samplingRate;
                 try
-                    Spikes.Online_SpkSort.Units{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/recordings']);
-                    Spikes.Online_SpkSort.SpikeTimes{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/time_samples']);
-                    Spikes.Online_SpkSort.Waveforms{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/waveforms_filtered']);
+                    Spikes.Online_Sorting.Units{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/recordings']);
+                    Spikes.Online_Sorting.SpikeTimes{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/time_samples']);
+                    Spikes.Online_Sorting.Waveforms{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/waveforms_filtered']);
                 catch
-                    Spikes.Online_SpkSort.Units{ChExN,1}=[];
-                    Spikes.Online_SpkSort.SpikeTimes{ChExN,1}=[];
-                    Spikes.Online_SpkSort.Waveforms{ChExN,1}=[];
+                    Spikes.Online_Sorting.Units{ChExN,1}=[];
+                    Spikes.Online_Sorting.SpikeTimes{ChExN,1}=[];
+                    Spikes.Online_Sorting.Waveforms{ChExN,1}=[];
                 end
             end
         case 'nex'
-        case 'ns6'
+        case 'ns6' % Blackrock
             SpikeData = openNEV([handles.dname handles.fname(1:end-3) 'nev']); 
             % ADC resolution is 0.25uV per bit. Divide values by 4 to convert to uV 
             Spikes.Online_Sorting.Resolution={0.25, 'uV per bit'};
-            GoodChans=unique(SpikeData.Data.Spikes.Electrode);
-            if size(handles.rawData,1)~=length(GoodChans)
-                disp('not as many spiking channels as raw data')
+%             GoodChans=unique(SpikeData.Data.Spikes.Electrode);
+%             if size(handles.rawData,1)~=length(GoodChans)
+%                 disp('not as many spiking channels as raw data')
+%             end
+            if sum([SpikeData.ElectrodesInfo([handles.probeLayout.BlackrockChannel]).ElectrodeID]-...
+               uint16([SpikeData.ElectrodesInfo([handles.probeLayout.BlackrockChannel]).ConnectorPin]))==0
+                % recording wasn't mapped
+                GoodChans=[handles.probeLayout.BlackrockChannel];
+            else
+                GoodChans=[handles.probeLayout.Electrode];
             end
+           
             for ChExN=1:size(GoodChans,2)
                 Spikes.Online_Sorting.electrode(ChExN)=ChExN;
                 Spikes.Online_Sorting.samplingRate(ChExN,1)=SpikeData.MetaTags.SampleRes;
                 try
-                    Spikes.Online_Sorting.Units{ChExN,1}=int8(SpikeData.Data.Spikes.Unit(SpikeData.Data.Spikes.Electrode==GoodChans(ChExN)));
-                    Spikes.Online_Sorting.SpikeTimes{ChExN,1}=SpikeData.Data.Spikes.TimeStamp(SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
-                    Spikes.Online_Sorting.Waveforms{ChExN,1}=SpikeData.Data.Spikes.Waveform(:,SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
+                    Spikes.Online_Sorting.Units{ChExN,1}=int8(SpikeData.Data.Spikes.Unit...
+                        (SpikeData.Data.Spikes.Electrode==GoodChans(ChExN)));
+                    Spikes.Online_Sorting.SpikeTimes{ChExN,1}=SpikeData.Data.Spikes.TimeStamp...
+                        (SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
+                    Spikes.Online_Sorting.Waveforms{ChExN,1}=SpikeData.Data.Spikes.Waveform...
+                        (:,SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
                 catch
                     Spikes.Online_Sorting.Units{ChExN,1}=[];
                     Spikes.Online_Sorting.SpikeTimes{ChExN,1}=[];
@@ -618,7 +629,7 @@ switch handles.rec_info.sys
             end
 end
 
-if get(handles.CB_AddTTLChannel,'value')
+if get(handles.CB_AddTTLChannel,'value') %adding a TTL Channel to exported data
     if isfield(handles.Trials,'continuous')
         TTL_reSampled = handles.Trials.continuous - median(handles.Trials.continuous);
         TTL_reSampled = resample(double(TTL_reSampled),30,1);
@@ -637,7 +648,16 @@ else
 end
 
 if get(handles.CB_SpecifyName,'value')==0
-    fNameBegin=cell2mat(regexp(handles.fname,'\w+(?=([a-z]|\_)\d+\.\w+$)','match'));
+    switch cell2mat(regexp(handles.fname,'(?<=^\w+\.)\w\w','match'))
+        case 'ns'
+            fNameBegin=cell2mat(regexp(handles.fname,'\w+(?=([a-z]|\_)\d+\.\w+$)','match'));
+        case 'ra'
+            fNameBegin=strrep([cell2mat(regexp(handles.rec_info.expname,'\w+(?=_OEph)','match')) ...
+                cell2mat(regexp(handles.dname,'(?<=_\d\d-\d\d-\d\d_).+(?=\\$)','match'))],' ','');
+        case 'kw'
+        case 'co'
+        case 'ne'
+    end
     fNameEnds=cell2mat(regexp(handles.rec_info.expname,['(?<=' cell2mat(...
         regexp(handles.rec_info.expname,['\w+(?=' handles.rec_info.sys ')'],'match')) ')\w+'],...
         'match')); % ^^
@@ -770,10 +790,22 @@ function CB_SpecifyName_Callback(hObject, eventdata, handles)
 %% --- Executes on button press in PB_SpikePanel.
 function PB_SpikePanel_Callback(hObject, eventdata, handles)
 handles.exportDir=hObject.UserData;
+exportDirListing=dir(handles.exportDir);
+handles.spikeFile={exportDirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'_spikes.'),...
+                {exportDirListing.name},'UniformOutput',false))).name};
+if size(handles.spikeFile,2)>1
+    bestFit=sum(cell2mat(cellfun(@(name) ismember(handles.fname(1:end-4),name(1:size(handles.fname(1:end-4),2))),...
+        handles.spikeFile,'UniformOutput',false)'),2);
+    bestFit=bestFit==max(bestFit);
+    handles.spikeFile=handles.spikeFile{bestFit};
+else
+    handles.spikeFile=handles.spikeFile{:};
+end
+
 hfields = fieldnames(handles);
 hdata = struct2cell(handles);
 hkeep = logical(cell2mat(cellfun(@(x) sum(~cellfun('isempty',...
-    strfind({'fname';'dname';'rec_info';'Trials';'exportDir'},x))),...
+    strfind({'fname';'dname';'rec_info';'Trials';'exportDir';'spikeFile'},x))),...
     hfields,'UniformOutput', false)));
 htransfer = cell2struct(hdata(hkeep), hfields(hkeep));
 
