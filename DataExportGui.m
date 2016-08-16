@@ -650,7 +650,7 @@ end
 if get(handles.CB_SpecifyName,'value')==0
     switch cell2mat(regexp(handles.fname,'(?<=^\w+\.)\w\w','match'))
         case 'ns'
-            fNameBegin=cell2mat(regexp(handles.fname,'\w+(?=([a-z]|\_)\d+\.\w+$)','match'));
+            fNameBegin=handles.fname(1:length(cell2mat(regexp(handles.fname,'\w+(?=([a-z]|\_)\d+\.\w+$)','match')))+1);      
         case 'ra'
             fNameBegin=strrep([cell2mat(regexp(handles.rec_info.expname,'\w+(?=_OEph)','match')) ...
                 cell2mat(regexp(handles.dname,'(?<=_\d\d-\d\d-\d\d_).+(?=\\$)','match'))],' ','');
