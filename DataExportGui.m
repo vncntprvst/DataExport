@@ -362,6 +362,7 @@ cd(handles.dname); %in case some other file was exported before
 if get(handles.CB_ExportWhichChannel,'value')==0
     handles.rawData=handles.rawData(handles.keepChannels,:);
 end
+handles.rec_info.exportedChan=handles.keepChannels;
 
 % export only excerpt
 if get(handles.RB_ExportOnlySample,'value')==1
