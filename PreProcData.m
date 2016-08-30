@@ -89,7 +89,7 @@ elseif  strcmp(filterOption{1},'CAR')
     if size(filterOption,2)>1 & strcmp(filterOption{2},'all')
         channelSelection=linspace(1,size(data,1),size(data,1));
     elseif size(filterOption,2)>1 & ~strcmp(filterOption{2},'all')
-        channelSelection= str2double(filterOption{2});
+        channelSelection= str2num(filterOption{2});
     else
         channelSelection= listdlg('PromptString',...
         'select channels to use for CAR to plot:','ListString',chStr);

@@ -1,5 +1,6 @@
 function [rec,data,Trials] = LoadEphysData(fname,dname)
 wb = waitbar( 0, 'Reading Data File...' );
+userinfo=UserDirInfo;
 try
     cd(dname);
     rec.expname=regexp(strrep(dname,'-','_'),'\\\w+','match');
@@ -89,19 +90,43 @@ try
     elseif strfind(fname,'.ns')
         %% Blackrock raw data
         tic;
-        data = openNSxNew(fname);
+%         infoPackets = openCCF([fname(1:end-3) 'ccf'])
+        fileSize=dir(fname);fileSize=fileSize.bytes/10^6;
+        if fileSize>5*10^3 % over 5 gigabytes: partial read
+            rec.partialRead=true;
+            %             following line doesn't work for files with a pause
+            %             data = openLongNSx([cd userinfo.slash], fname,round(fileSize/(5*10^3)));
+            % better to read only part of the file
+            fileHeader=openNSx([dname fname],'noread');
+            rec.fileSamples=fileHeader.MetaTags.DataPoints;
+            % max(fileSamples)/fileHeader.MetaTags.SamplingFreq/3600
+            splitVector=round(linspace(1,max(rec.fileSamples),round(fileSize/(5*10^3))));
+            data=openNSx([dname fname],['t:1:' num2str(splitVector(2))] , 'sample');
+%             data=openNSx([dname fname],['t:' num2str(fileHeader.MetaTags.DataPoints(1)-1000000)...
+%                 ':' num2str(fileHeader.MetaTags.DataPoints(1)+90000000)] , 'sample');
+            if iscell(data.Data) & size(data.Data,2)>1 %gets splitted into two cells sometimes for no reason
+                data.Data=[data.Data{:}];
+            end
+        else
+            data = openNSx([cd userinfo.slash fname]);
+        end
+%         data = openNSxNew(fname);
+        
         %     analogData = openNSxNew([fname(1:end-1) '2']);
         %get basic info about recording
         rec.dur=data.MetaTags.DataPoints;
         rec.samplingRate=data.MetaTags.SamplingFreq;
         rec.numRecChan=data.MetaTags.ChannelCount;  %number of raw data channels.
-        rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match')) '_' cell2mat(regexp(data.MetaTags.DateTime,'(?<= )\d.+','match'))];
+        rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match'))...
+            '_' cell2mat(regexp(data.MetaTags.DateTime,'(?<= )\d.+','match'))];
         rec.date=regexprep(rec.date,'\W','_');
         % keep only raw data in data variable
         data=data.Data;
         disp(['took ' num2str(toc) ' seconds to load data']);
     end
     waitbar( 0.9, wb, 'getting TTL times and structure');
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% get TTL times and structure
     Trials=struct('start',[],'end',[],'interval',[],'sampleRate',[],'continuous',[]);
     if strfind(fname,'raw.kwd')
@@ -126,33 +151,41 @@ try
     elseif strfind(fname,'.ns')
         %% Blackrock raw data
         try
-            analogChannel = openNSxNew([fname(1:end-1) '2']);
+            %analogChannel = openNSxNew([fname(1:end-1) '2']);
+            analogChannel = openNSx([cd userinfo.slash fname(1:end-1) '2']);
             samplingRate=1000;
             Trials.continuous=analogChannel.Data;
         catch
-            analogChannel = openNSxNew([fname(1:end-1) '3']);
-            samplingRate=2000;
-            Trials.continuous=analogChannel.Data;
-        end
-        Trials.sampleRate=analogChannel.MetaTags.SamplingFreq;
-        Trials.continuous=Trials.continuous(end,:)-min(Trials.continuous(end,:));
-        TTL_times=uint64(find(diff(Trials.continuous>rms(Trials.continuous)*5)))';
-        if min(diff(TTL_times))<median(diff(TTL_times))-2
-            %remove spurious pulses
-            return
-        end
-        if mode(diff(TTL_times))==1 | isempty(TTL_times)%no trials, just artifacts
-            [Trials.start, Trials.end,TTL_ID,Trials]=deal(0);
-        else            
-            Trials.start=find(diff(Trials.continuous>rms(Trials.continuous)*5)==1);
-            Trials.end=find(diff(Trials.continuous<rms(Trials.continuous)*5)==1);
-            TTL_ID=zeros(size(TTL_times,1),1);
-            if Trials.end(1)-Trials.start(1)>0 %as it should
-                TTL_ID(1:2:end)=1;
-            else
-                TTL_ID(2:2:end)=1;
+            try
+                %analogChannel = openNSxNew([fname(1:end-1) '3']);
+                analogChannel = openNSx([cd userinfo.slash fname(1:end-1) '3']);
+                samplingRate=2000;
+                Trials.continuous=analogChannel.Data;
+            catch
+                Trials.continuous=[];
             end
-            Trials=ConvTTLtoTrials(TTL_times,samplingRate,TTL_ID);
+        end
+        if ~isempty(Trials.continuous) & ~iscell(Trials.continuous)
+            Trials.sampleRate=analogChannel.MetaTags.SamplingFreq;
+            Trials.continuous=Trials.continuous(end,:)-min(Trials.continuous(end,:));
+            TTL_times=uint64(find(diff(Trials.continuous>rms(Trials.continuous)*5)))';
+            if min(diff(TTL_times))<median(diff(TTL_times))-2
+                %remove spurious pulses
+                return
+            end
+            if mode(diff(TTL_times))==1 | isempty(TTL_times)%no trials, just artifacts
+                [Trials.start, Trials.end,TTL_ID,Trials]=deal(0);
+            else
+                Trials.start=find(diff(Trials.continuous>rms(Trials.continuous)*5)==1);
+                Trials.end=find(diff(Trials.continuous<rms(Trials.continuous)*5)==1);
+                TTL_ID=zeros(size(TTL_times,1),1);
+                if Trials.end(1)-Trials.start(1)>0 %as it should
+                    TTL_ID(1:2:end)=1;
+                else
+                    TTL_ID(2:2:end)=1;
+                end
+                Trials=ConvTTLtoTrials(TTL_times,samplingRate,TTL_ID);
+            end
         end
     end
 catch

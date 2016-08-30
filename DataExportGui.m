@@ -91,6 +91,8 @@ else
         if isempty(subjectName)
            subjectName=inputdlg('Enter subject name','Subject Name',1,{handles.fname});
         end
+    elseif size(subjectName,2)>1 %loading from dedicated subject directory
+        subjectName=subjectName(1);
     end
     load([userinfo.probemap userinfo.slash 'ImplantList.mat']);
     probeID=implantList(~cellfun('isempty',...
@@ -120,6 +122,13 @@ else
     %     end
     % end
     
+    %remove un-labeled and EMG channels
+    if isfield(handles.probeLayout,'Label') 
+        labeledChans=~cellfun(@(chLabel)~isempty(strfind(chLabel,'chan')) |...
+            ~isempty(strfind(chLabel,'EMG')), {handles.probeLayout.Label});
+        handles.probeLayout=handles.probeLayout(labeledChans);
+        handles.rawData=handles.rawData(labeledChans,:);
+    end
     %map channels to electrodes
     switch handles.rec_info.expname{cell2mat(cellfun(@(x) strfind(x,'raw'), handles.rec_info.expname,'UniformOutput',false))+1}(2:end)
         case 'OpenEphys'
@@ -648,7 +657,7 @@ else
 end
 
 if get(handles.CB_SpecifyName,'value')==0
-    switch cell2mat(regexp(handles.fname,'(?<=^\w+\.)\w\w','match'))
+    switch cell2mat(regexp(strrep(handles.fname,'-','_'),'(?<=^\w+\.)\w\w','match'))
         case 'ns'
             fNameBegin=handles.fname(1:length(cell2mat(regexp(handles.fname,'\w+(?=([a-z]|\_)\d+\.\w+$)','match')))+1);      
         case 'ra'
@@ -707,10 +716,16 @@ fprintf(fileID,['%21s\t\t %' num2str(length(num2str(handles.keepChannels'))) 's\
 fclose(fileID);
 
 if get(handles.RB_ExportRaw_dat,'value')
-    fileID = fopen([handles.rec_info.exportname '.dat'],'w');
-    fwrite(fileID,handles.rawData,'int16');
-    % fprintf(fileID,'%d\n',formatdata);
-    fclose(fileID);
+    if isfield(handles.rec_info,'partialRead') && handles.rec_info.partialRead && ...
+            ~get(handles.RB_ExportOnlySample,'value')==1
+        exportBigFile([handles.dname handles.fname],...
+            [handles.rec_info.exportname '.dat'],handles.probeLayout,handles.keepChannels);
+    else
+        fileID = fopen([handles.rec_info.exportname '.dat'],'w');
+        fwrite(fileID,handles.rawData,'int16');
+        % fprintf(fileID,'%d\n',formatdata);
+        fclose(fileID);
+    end
 end
 
 if get(handles.RB_ExportRaw_mat,'value')
@@ -797,7 +812,11 @@ if size(handles.spikeFile,2)>1
     bestFit=sum(cell2mat(cellfun(@(name) ismember(handles.fname(1:end-4),name(1:size(handles.fname(1:end-4),2))),...
         handles.spikeFile,'UniformOutput',false)'),2);
     bestFit=bestFit==max(bestFit);
-    handles.spikeFile=handles.spikeFile{bestFit};
+    try
+        handles.spikeFile=handles.spikeFile{bestFit};
+    catch
+        handles.spikeFile=handles.spikeFile{1};
+    end
 else
     handles.spikeFile=handles.spikeFile{:};
 end
