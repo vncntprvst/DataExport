@@ -367,13 +367,13 @@ handles.rec_info.exportedChan=handles.keepChannels;
 % export only excerpt
 if get(handles.RB_ExportOnlySample,'value')==1
     if get(handles.LB_ExportSampleLocation,'value')==1
-        handles.rawData=handles.rawData(:,1:30000*60*str2double(get(handles.TxEdit_SampleDuration,'String')));
+        handles.rawData=handles.rawData(:,1:handles.rec_info.samplingRate*60*str2double(get(handles.TxEdit_SampleDuration,'String')));
     elseif get(handles.LB_ExportSampleLocation,'value')==2  
         handles.rawData=handles.rawData(:,...
-            round(size(handles.rawData,2)/2)-30000*30*str2double(get(handles.TxEdit_SampleDuration,'String')):...
-            round(size(handles.rawData,2)/2)+30000*30*str2double(get(handles.TxEdit_SampleDuration,'String')));
+            round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate*30*str2double(get(handles.TxEdit_SampleDuration,'String')):...
+            round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate*30*str2double(get(handles.TxEdit_SampleDuration,'String')));
     elseif get(handles.LB_ExportSampleLocation,'value')==3
-        handles.rawData=handles.rawData(:,end-30000*60*str2double(get(handles.TxEdit_SampleDuration,'String')):end);
+        handles.rawData=handles.rawData(:,end-handles.rec_info.samplingRate*60*str2double(get(handles.TxEdit_SampleDuration,'String')):end);
     end
 end
 if get(handles.RB_ExportWithNoSignalCutout,'value')==1
@@ -696,7 +696,7 @@ else
     cd(cell2mat(regexp(handles.rec_info.expname,'\w+(?=_\w+$)','match')));
 end
 set(handles.PB_SpikePanel,'UserData',cd);
-
+% saving info about file and export
 save([handles.rec_info.exportname '_info'],'-struct','handles','rec_info','-v7.3');
 fileID = fopen([handles.rec_info.exportname '.txt'],'w'); 
 if ischar(handles.rec_info.date)
@@ -715,7 +715,7 @@ fprintf(fileID,'%21s\t\t\t %12u\r','number of rec. chans ',handles.rec_info.numR
 fprintf(fileID,['%21s\t\t %' num2str(length(num2str(handles.keepChannels'))) 's\r'],...
     'exported channels    ',num2str(handles.keepChannels'));
 fclose(fileID);
-
+%     dataExcerpt=PreProcData(foo,30000,{'CAR','all'}); figure;plot(dataExcerpt(15,:))
 if get(handles.RB_ExportRaw_dat,'value')
     if isfield(handles.rec_info,'partialRead') && handles.rec_info.partialRead && ...
             ~get(handles.RB_ExportOnlySample,'value')==1

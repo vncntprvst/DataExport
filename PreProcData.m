@@ -8,6 +8,10 @@ defaultFigPos=get(0, 'defaultfigureposition');
 diagPos=[1631 437 defaultFigPos(3:4)];
 set(0,'defaultfigureposition',diagPos);
 
+if ~isa(data,'double')
+    data=double(data);
+end
+
 %% Pre-processing options
 if strcmp(filterOption{1},'lowpass')
     %% butterworth low-pass
@@ -15,7 +19,7 @@ if strcmp(filterOption{1},'lowpass')
     [b,a] = butter(3,6000/(samplingRate/2),'low');
     % delay = round(max(grpdelay(b,a)));
     for chNm=1:size(data,1)
-        data(chNm,:)= filter(b,a,single(data(chNm,:)));
+        data(chNm,:)= filtfilt(b, a, data(chNm,:));
     end
     disp(['lowpass done in ' num2str(toc) 'seconds']);
 elseif strcmp(filterOption{1},'highpass')
@@ -24,7 +28,8 @@ elseif strcmp(filterOption{1},'highpass')
     [b,a] = butter(3,500/(samplingRate/2),'high');
     % delay = round(max(grpdelay(b,a)));
     for chNm=1:size(data,1)
-        data(chNm,:)= filter(b,a,single(data(chNm,:)));
+%         data(chNm,:)= filter(b,a,single(data(chNm,:)));
+          data(chNm,:)= filtfilt(b, a, data(chNm,:));
     end
     disp(['highpass done in ' num2str(toc) 'seconds']);
 elseif strcmp(filterOption{1},'bandpass')
@@ -45,7 +50,7 @@ elseif strcmp(filterOption{1},'bandpass')
     [b,a] = butter(3,[filtHP/(samplingRate/2) filtLP/(samplingRate/2)]);
     % delay = round(max(grpdelay(b,a)));
     for chNm=1:size(data,1)
-        data(chNm,:)= filter(b,a,single(data(chNm,:)));
+        data(chNm,:)= filtfilt(b, a, data(chNm,:));
     end
     disp(['bandpass done in ' num2str(toc) 'seconds']);
 elseif strcmp(filterOption{1},'movav_sub')
@@ -55,18 +60,18 @@ elseif strcmp(filterOption{1},'movav_sub')
     windowSize=avOver*(samplingRate/1000);
     meanDelay = round(mean(grpdelay((1/windowSize)*ones(1,windowSize),1)));
     for chNm=1:size(data,1)
-        movAverage = filter((1/windowSize)*ones(1,windowSize),1,single(data(chNm,:)));
-        movAverageTail=filter((1/windowSize)*ones(1,windowSize),1,single(data(chNm,end-meanDelay+1:end)));
+        movAverage = filtfilt((1/windowSize)*ones(1,windowSize),1,data(chNm,:));
+        movAverageTail=filtfilt((1/windowSize)*ones(1,windowSize),1,data(chNm,end-meanDelay+1:end));
         movAverage = [movAverage(meanDelay+1:end) movAverageTail(avOver+2:end)] ;
         movAverageHeadLim=find((diff(diff((movAverage))))>1,1)+1;
         [b,a] = butter(3,3000/(samplingRate/2),'low');
-        movAverageHead=filter(b,a,...
-            single([data(chNm,movAverageHeadLim:-1:1) data(chNm,1:movAverageHeadLim)]));
+        movAverageHead=filtfilt(b,a,...
+            [data(chNm,movAverageHeadLim:-1:1) data(chNm,1:movAverageHeadLim)]);
         movAverageHead=movAverageHead(movAverageHeadLim+1:end);%+...
 %             (movAverage(movAverageHeadLim)-movAverageHead(movAverageHeadLim));
         movAverageTailLim=find((diff(diff((movAverage))))>1,1,'last');
-        movAverageTail=filter(b,a,...
-            single([data(chNm,movAverageTailLim:end) data(chNm,end:-1:movAverageTailLim)]));
+        movAverageTail=filtfilt(b,a,...
+            [data(chNm,movAverageTailLim:end) data(chNm,end:-1:movAverageTailLim)]);
         movAverageTail=movAverageTail(end:-1:size(data(chNm,movAverageTailLim:end),2)+1);
         movAverage = [movAverageHead...
             movAverage(movAverageHeadLim+1:movAverageTailLim-1)...
@@ -83,7 +88,7 @@ elseif  strcmp(filterOption{1},'CAR')
         [b,a] = butter(3,[500 10000]/(samplingRate/2),'bandpass');
     end
     for chNm=1:size(data,1)
-        data(chNm,:)= filter(b,a,single(data(chNm,:)));
+        data(chNm,:)= filtfilt(b,a,data(chNm,:));
     end
     % select channels to use for CAR
     if size(filterOption,2)>1 & strcmp(filterOption{2},'all')
@@ -111,7 +116,7 @@ elseif  strcmp(filterOption{1},'norm')
     [b,a] = butter(3,500/(samplingRate/2),'high');
     % delay = round(max(grpdelay(b,a)));
     for chNm=1:size(data,1)
-        data(chNm,:)= filter(b,a,single(data(chNm,:)));
+        data(chNm,:)= filtfilt(b,a,data(chNm,:));
     end
     data=(data-repmat(median(data,1),[size(data,1),1]));%./mad(faa,1);
 
@@ -154,12 +159,12 @@ elseif  strcmp(filterOption{1},'difffilt')
         
         %start with fairly high HP for a basis
         [b,a] = butter(3,500/(samplingRate/2),'high'); %'bandpass' is the default when Wn has two elements.
-        HPfiltSample = filter(b,a,single(data(chNm,:)));
+        HPfiltSample = filtfilt(b,a,data(chNm,:));
         
         % get the underlying low-frequency baseline
         [b,a] = butter(3,1000/(samplingRate/2),'low'); %'bandpass' is the default when Wn has two elements.
         filtSampleDelay= round(max(grpdelay(b,a)));
-        LPfiltSample = filter(b,a,single([HPfiltSample zeros(1,filtSampleDelay)]));
+        LPfiltSample = filtfilt(b,a,[HPfiltSample zeros(1,filtSampleDelay)]);
         LPfiltSample = LPfiltSample(filtSampleDelay+1:length(HPfiltSample)+filtSampleDelay);
         %         plot(LPfiltSample)
         
@@ -208,11 +213,11 @@ elseif  strcmp(filterOption{1},'difffilt')
         
         exporttype='hp'; % raw
         if strcmp(exporttype,'raw')
-            LPfiltSample = int16(filter(b,a,single([data(chNm,:) zeros(1,filtSampleDelay)])));
+            LPfiltSample = int16(filtfilt(b,a,[data(chNm,:) zeros(1,filtSampleDelay)]));
             LPfiltSample = LPfiltSample(filtSampleDelay+1:length(data(chNm,:))+filtSampleDelay);
             LPfiltSample(highAmpSampleIdx)=LPfiltSample(highAmpSampleIdx)+data(chNm,highAmpSampleIdx);
         else
-            LPfiltSample = filter(b,a,single([HPfiltSample zeros(1,filtSampleDelay)]));
+            LPfiltSample = filtfilt(b,a,[HPfiltSample zeros(1,filtSampleDelay)]);
             LPfiltSample = LPfiltSample(filtSampleDelay+1:length(HPfiltSample)+filtSampleDelay);
             LPfiltSample(highAmpSampleIdx)=LPfiltSample(highAmpSampleIdx)+HPfiltSample(highAmpSampleIdx);
         end
@@ -271,13 +276,13 @@ elseif strcmp(filterOption{1},'multifilt')
         disp(['Channel ' num2str(chNm) ' of ' num2str(size(data,1))]);
         [b,a] = butter(3,500/(samplingRate/2),'low'); %'bandpass' is the default when Wn has two elements.
         filtSampleDelay = round(max(grpdelay(b,a)));
-        LPfiltSample = filter(b,a,single([data(chNm,:) zeros(1,filtSampleDelay)]));
+        LPfiltSample = filtfilt(b,a,[data(chNm,:) zeros(1,filtSampleDelay)]);
         LPfiltSample = LPfiltSample(filtSampleDelay+1:length(data(chNm,:))+filtSampleDelay);
         
         adjustSample=data(chNm,:)-int16(LPfiltSample);
         [b,a] = butter(3,1000/(samplingRate/2),'low'); %'bandpass' is the default when Wn has two elements.
         filtSampleDelay= round(max(grpdelay(b,a)));
-        LPfiltSample = filter(b,a,single([adjustSample zeros(1,filtSampleDelay)]));
+        LPfiltSample = filtfilt(b,a,[adjustSample zeros(1,filtSampleDelay)]);
         LPfiltSample = LPfiltSample(filtSampleDelay+1:length(adjustSample)+filtSampleDelay);
         
         % compute median absolute deviation (MAD), qui vaut 1.5 STD. Donc un seuil a 7 en MAD, ca veut dire 4*STD (car 4*1.5=7).
@@ -291,7 +296,7 @@ elseif strcmp(filterOption{1},'multifilt')
         %filter adjustSample
         [b,a] = butter(3,6000/(samplingRate/2),'low');
         filtSampleDelay = round(max(grpdelay(b,a)));
-        BPfiltSample= filter(b,a,single([adjustSample zeros(1,filtSampleDelay)]));
+        BPfiltSample= filtfilt(b,a,[adjustSample zeros(1,filtSampleDelay)]);
         %     actualDelay=find(BPfiltSample(find(adjustSample==max(adjustSample)):end)==max(BPfiltSample(find(adjustSample==max(adjustSample)):end)));
         BPfiltSample=BPfiltSample(filtSampleDelay+1:length(adjustSample)+filtSampleDelay);
         data(chNm,:)=int16(BPfiltSample)+adjAmpTmplt;
@@ -316,7 +321,7 @@ elseif strcmp(filterOption{1},'multifilt')
         
         %     [b,a] = butter(3,[600 6000]/(samplingRate/2)); %'bandpass' is the default when Wn has two elements.
         %     filtSampleDelay = round(max(grpdelay(b,a)));
-        %     filtfoo = filter(b,a,single([foo zeros(1,filtSampleDelay)]));
+        %     filtfoo = filtfilt(b,a,[foo zeros(1,filtSampleDelay)]));
         %     filtfoo=filtfoo(filtSampleDelay+1:length(foo)+filtSampleDelay);
         %     plot(filtfoo(1:samplingRate));
         
@@ -325,7 +330,7 @@ elseif strcmp(filterOption{1},'multifilt')
     %preview
     %     [b,a] = butter(3,500/(samplingRate/2),'high'); %'bandpass' is the default when Wn has two elements.
     %     delay{1} = round(max(grpdelay(b,a)));
-    %     filtData{1} = filter(b,a,single([adjustSample zeros(1,delay{1})]));
+    %     filtData{1} = filtfilt(b,a,[adjustSample zeros(1,delay{1})]));
     %     filtData{1}=filtData{1}( delay{1}+1:length(adjustSample)+delay{1});
     %     figure; plot(filtData{1}(1,4400:5450));
 elseif  strcmp(filterOption{1},'CAR_subset')
