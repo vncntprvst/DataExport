@@ -22,7 +22,8 @@ function splitThatNSx(splitCount,fname, path)
 %   ktorab@blackrockmicro.com
 %   Blackrock Microsystems
 %   Version 1.0.3.0
-%
+
+%   8/2016 Modified to accept file name input - VP
 
 switch nargin % Validating input parameters
     case 0 

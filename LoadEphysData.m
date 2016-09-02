@@ -92,23 +92,24 @@ try
         tic;
 %         infoPackets = openCCF([fname(1:end-3) 'ccf'])
         fileSize=dir(fname);fileSize=fileSize.bytes/10^6;
-        if fileSize>5*10^3 % over 5 gigabytes: partial read
+        if fileSize>5*10^3 % over 5 gigabytes: read only part of it
             rec.partialRead=true;
-            %             following line doesn't work for files with a pause
-            %             data = openLongNSx([cd userinfo.slash], fname,round(fileSize/(5*10^3)));
-            % better to read only part of the file
-            fileHeader=openNSx([dname fname],'noread');
-            rec.fileSamples=fileHeader.MetaTags.DataPoints;
-            % max(fileSamples)/fileHeader.MetaTags.SamplingFreq/3600
-            splitVector=round(linspace(1,max(rec.fileSamples),round(fileSize/(5*10^3))));
-            data=openNSx([dname fname],['t:1:' num2str(splitVector(2))] , 'sample');
-%             data=openNSx([dname fname],['t:' num2str(fileHeader.MetaTags.DataPoints(1)-1000000)...
-%                 ':' num2str(fileHeader.MetaTags.DataPoints(1)+90000000)] , 'sample');
-            if iscell(data.Data) & size(data.Data,2)>1 %gets splitted into two cells sometimes for no reason
-                data.Data=[data.Data{:}];
-            end
+            data = openLongNSx([cd userinfo.slash], fname);
+%             % alternatively read only part of the file
+%             fileHeader=openNSx([dname fname],'noread');
+%             rec.fileSamples=fileHeader.MetaTags.DataPoints;
+%             % max(fileSamples)/fileHeader.MetaTags.SamplingFreq/3600
+%             splitVector=round(linspace(1,max(rec.fileSamples),round(fileSize/(5*10^3))));
+%             data=openNSx([dname fname],['t:1:' num2str(splitVector(2))] , 'sample');
         else
             data = openNSx([cd userinfo.slash fname]);
+        end
+        if iscell(data.Data) && size(data.Data,2)>1 %gets splitted into two cells sometimes for no reason
+            data.Data=[data.Data{:}]; %remove extra data.Data=data.Data(:,1:63068290);
+                                      %data.MetaTags.DataPoints=63068290;
+                                      %data.MetaTags.DataDurationSec=data.MetaTags.DataDurationSec(1)-(data.MetaTags.DataDurationSec(1)-(63068290/30000))
+                                      %data.MetaTags.Timestamp=0;
+                                      %data.MetaTags.DataPointsSec=data.MetaTags.DataDurationSec;
         end
 %         data = openNSxNew(fname);
         
@@ -116,6 +117,7 @@ try
         %get basic info about recording
         rec.dur=data.MetaTags.DataPoints;
         rec.samplingRate=data.MetaTags.SamplingFreq;
+        rec.bitResolution=resolution;
         rec.numRecChan=data.MetaTags.ChannelCount;  %number of raw data channels.
         rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match'))...
             '_' cell2mat(regexp(data.MetaTags.DateTime,'(?<= )\d.+','match'))];
