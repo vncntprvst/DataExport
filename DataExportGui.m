@@ -135,8 +135,11 @@ else
             [~,chMap]=sort([handles.probeLayout.OEChannel]);[~,chMap]=sort(chMap);
             handles.rawData=handles.rawData(chMap,:);   
         case 'Blackrock'
-            [~,chMap]=sort([handles.probeLayout.BlackrockChannel]);[~,chMap]=sort(chMap);
-            handles.rawData=handles.rawData(chMap,:);
+            % check if already mapped 
+            if isfield(handles.rec_info,'chanID') && sum(diff(handles.rec_info.chanID)==1)==numel(handles.rec_info.chanID)-1
+                [~,chMap]=sort([handles.probeLayout.BlackrockChannel]);[~,chMap]=sort(chMap);
+                handles.rawData=handles.rawData(chMap,:);
+            end
         otherwise
             %stay as it is
             disp('no channel mapping available')
@@ -171,7 +174,7 @@ else
     ylabel(handles.Axes_RawData,'Raw signal')
     set(handles.Axes_RawData,'Color','white','FontSize',12,'FontName','calibri');
     
-    %% Plot pre-proc excerpt
+    %% Plot pre-processed excerpt
     preprocMenu=get(handles.LB_ProcessingType,'string');
     preprocOption=get(handles.LB_ProcessingType,'value');
     preprocOption=preprocMenu(preprocOption);

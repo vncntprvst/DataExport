@@ -49,6 +49,7 @@ try
         %get basic info about recording
         rec.dur=rawInfo.Groups.Datasets.Dataspace.Size;
         rec.samplingRate=h5readatt(fname,rawInfo.Groups.Name,'sample_rate');
+        rec.bitResolution=0.195; %see Intan RHD2000 Series documentation
         rec.bitDepth=h5readatt(fname,rawInfo.Groups.Name,'bit_depth');
         %   rec.numSpikeChan= size(chanInfo.Groups.Groups,1); %number of channels with recored spikes
         
@@ -92,7 +93,7 @@ try
         tic;
 %         infoPackets = openCCF([fname(1:end-3) 'ccf'])
         fileSize=dir(fname);fileSize=fileSize.bytes/10^6;
-        if fileSize>5*10^3 % over 5 gigabytes: read only part of it
+        if fileSize>10*10^3 % over 10 gigabytes: read only part of it
             rec.partialRead=true;
             data = openLongNSx([cd userinfo.slash], fname);
 %             % alternatively read only part of the file
@@ -117,7 +118,8 @@ try
         %get basic info about recording
         rec.dur=data.MetaTags.DataPoints;
         rec.samplingRate=data.MetaTags.SamplingFreq;
-        rec.bitResolution=resolution;
+        rec.bitResolution=0.25; % ±8 mV @ 16-Bit => 16000/2^16 = 0.2441 ?V 
+        rec.chanID=data.MetaTags.ChannelID;
         rec.numRecChan=data.MetaTags.ChannelCount;  %number of raw data channels.
         rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match'))...
             '_' cell2mat(regexp(data.MetaTags.DateTime,'(?<= )\d.+','match'))];
