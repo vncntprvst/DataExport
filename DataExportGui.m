@@ -366,7 +366,7 @@ if get(handles.CB_ExportWhichChannel,'value')==0
     handles.rawData=handles.rawData(handles.keepChannels,:);
 end
 handles.rec_info.exportedChan=handles.keepChannels;
-
+guidata(hObject, handles);
 % export only excerpt
 if get(handles.RB_ExportOnlySample,'value')==1
     if get(handles.LB_ExportSampleLocation,'value')==1
@@ -527,14 +527,17 @@ if get(handles.RB_ExportSpikes_OfflineSort,'value')==1
         Spikes.Offline_Threshold.type{ChExN,1}='nativeData';
         
         % plots
-        % figure; hold on;
-        % plot(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),1:300*Spikes.Offline_Threshold.samplingRate));
-        % % plot(handles.rawData(Spikes.Offline_Threshold.electrode,:)+1500);
-        % % thd10=rms((handles.rawData(10,:)));
-        % plot(-7*thld*ones(1,size(1:300*Spikes.Offline_Threshold.samplingRate,2)));
-        % plot(-40*thld*ones(1,size(1:300*Spikes.Offline_Threshold.samplingRate,2)));
-        % % plot(1500-4*thd*ones(1,size(handles.rawData,2)));
-        % % foo=handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:)>(-40*thld);
+%         figure; hold on;
+%         midRec=round(size(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:),2)/2);
+%         plotWin=5*Spikes.Offline_Threshold.samplingRate;
+%         plot(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),midRec-plotWin:midRec+plotWin));
+%         % plot(handles.rawData(Spikes.Offline_Threshold.electrode,:)+1500);
+%         % thd10=rms((handles.rawData(10,:)));
+%         thld=rms(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:));
+%         plot(-5*thld*ones(1,size(midRec-plotWin:midRec+plotWin,2)));
+%         plot(-40*thld*ones(1,size(midRec-plotWin:midRec+plotWin,2)));
+%         % plot(1500-4*thd*ones(1,size(handles.rawData,2)));
+%         % foo=handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:)>(-40*thld);
         
         % plot(Spikes.Offline_Threshold.nativeData*500);
         
