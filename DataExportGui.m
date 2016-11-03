@@ -9,7 +9,7 @@ function varargout = DataExportGui(varargin)
 %
 % When opening, will use most recent folder in user's data directory as root
 % Written by Vincent Prevosto, 2016
-% Last Modified by GUIDE v2.5 17-Jun-2016 11:59:27
+% Last Modified by GUIDE v2.5 02-Nov-2016 23:14:08
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -187,6 +187,8 @@ else
             preprocOption={'CAR'};
         case 'LP - CAR'
             preprocOption={'CAR','LP'};
+        case 'LFP Lowpass'
+            preprocOption={'LFP'};
         case 'Bandpass (500 - 6000)'
             preprocOption={'bandpass'};
         case 'Bandpass - other'
@@ -263,6 +265,8 @@ switch preprocOption{:}
         preprocOption={'CAR'};
     case 'LP - CAR'
         preprocOption={'CAR','LP'};
+    case 'LFP Lowpass'
+        preprocOption={'LFP'};
     case 'Bandpass (500 - 6000)'
         preprocOption={'bandpass'};
     case 'Bandpass - other'
@@ -354,6 +358,21 @@ function CB_AddTTLChannel_Callback(hObject, eventdata, handles)
 % Hint: get(hObject,'Value') returns toggle state of CB_AddTTLChannel
 
 
+% --- Executes on button press in PB_ExportAll.
+function PB_ExportAll_Callback(hObject, eventdata, handles)
+
+%export raw data first
+% set ...
+% PB_Export_Callback(hObject, eventdata, handles)
+
+% then HP filtered data
+% set ...
+% PB_Export_Callback(hObject, eventdata, handles)
+
+% then LFP
+% set ...
+% PB_Export_Callback(hObject, eventdata, handles)
+
 %% --- Executes on button press in PB_Export.
 function PB_Export_Callback(hObject, eventdata, handles)
 tic;
@@ -397,6 +416,8 @@ switch preprocOption{:}
             preprocOption={'CAR',num2str(handles.channelSelection)};
     case 'LP - CAR'
             preprocOption={'CAR','LP'};
+    case 'LFP Lowpass'
+            preprocOption={'LFP'};
     case 'Bandpass (500 - 6000)'
         preprocOption={'bandpass'}; 
     case 'Bandpass - other'
@@ -916,5 +937,3 @@ if get(handles.RB_ExportRaw_NEV,'value')
     set(handles.RB_ExportRaw_mat,'value',0); 
     set(handles.CB_CreateParamsFile,'value',0);
 end
-
-
