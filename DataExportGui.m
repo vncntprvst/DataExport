@@ -361,17 +361,42 @@ function CB_AddTTLChannel_Callback(hObject, eventdata, handles)
 % --- Executes on button press in PB_ExportAll.
 function PB_ExportAll_Callback(hObject, eventdata, handles)
 
+handles.batchExport=1;
 %export raw data first
-% set ...
-% PB_Export_Callback(hObject, eventdata, handles)
+set(handles.LB_ProcessingType,'value',1);
+set(handles.RB_ExportRaw_dat,'value',1);
+set(handles.RB_ExportRaw_mat,'value',0);
+set(handles.RB_ExportRaw_NEV,'value',0);
+set(handles.CB_CreateParamsFile,'value',1);
+set(handles.RB_ExportSpikes_OnlineSort,'value',0);
+set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+set(handles.CB_SpecifyName,'value',0);
+set(handles.CB_SpecifyDir,'value',1);
+PB_Export_Callback(hObject, eventdata, handles);
 
 % then HP filtered data
-% set ...
-% PB_Export_Callback(hObject, eventdata, handles)
+set(handles.LB_ProcessingType,'value',2);
+set(handles.RB_ExportRaw_dat,'value',0);
+set(handles.RB_ExportRaw_mat,'value',1);
+set(handles.RB_ExportRaw_NEV,'value',0);
+set(handles.CB_CreateParamsFile,'value',0);
+set(handles.RB_ExportSpikes_OnlineSort,'value',1);
+set(handles.RB_ExportSpikes_OfflineSort,'value',1);
+set(handles.CB_SpecifyName,'value',0);
+set(handles.CB_SpecifyDir,'value',1);
+PB_Export_Callback(hObject, eventdata, handles);
 
 % then LFP
-% set ...
-% PB_Export_Callback(hObject, eventdata, handles)
+set(handles.LB_ProcessingType,'value',5);
+set(handles.RB_ExportRaw_dat,'value',0);
+set(handles.RB_ExportRaw_mat,'value',1);
+set(handles.RB_ExportRaw_NEV,'value',0);
+set(handles.CB_CreateParamsFile,'value',0);
+set(handles.RB_ExportSpikes_OnlineSort,'value',0);
+set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+set(handles.CB_SpecifyName,'value',0);
+set(handles.CB_SpecifyDir,'value',1);
+PB_Export_Callback(hObject, eventdata, handles);
 
 %% --- Executes on button press in PB_Export.
 function PB_Export_Callback(hObject, eventdata, handles)
@@ -704,8 +729,12 @@ if get(handles.CB_SpecifyName,'value')==0
     else
         customFileName=[fNameBegin '_' fNameEnds];
     end
-    handles.rec_info.exportname=inputdlg('Enter export file name','File Name',1,{customFileName});
-    handles.rec_info.exportname=handles.rec_info.exportname{:};
+    if handles.batchExport==0
+        handles.rec_info.exportname=inputdlg('Enter export file name','File Name',1,{customFileName});
+        handles.rec_info.exportname=handles.rec_info.exportname{:};
+    else
+      handles.rec_info.exportname=customFileName;
+    end
 else
     handles.rec_info.exportname=handles.rec_info.expname;
 end
@@ -766,7 +795,11 @@ if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportS
 end
 
 if get(handles.CB_CreateParamsFile,'value')==1
-    [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,'paramsfile');
+    if handles.batchExport==0
+        [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,'paramsfile');
+    else
+        [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,'paramsfile_noInputdlg');
+    end
     if status~=1
         disp('problem generating the parameter file')
     else
