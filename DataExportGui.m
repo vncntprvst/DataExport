@@ -400,6 +400,9 @@ PB_Export_Callback(hObject, eventdata, handles);
 
 %% --- Executes on button press in PB_Export.
 function PB_Export_Callback(hObject, eventdata, handles)
+if ~isfield(handles,'batchExport')
+    handles.batchExport=0;
+end
 tic;
 wb = waitbar( 0, 'Exporting Data' );
 set(wb,'Name','Exporting','Color',[0 0.4471 0.7412]);
@@ -429,47 +432,49 @@ if get(handles.RB_ExportWithNoSignalCutout,'value')==1
 end
 
 %% pre-process data
-preprocMenu=get(handles.LB_ProcessingType,'string');
-preprocOption=get(handles.LB_ProcessingType,'value');
-preprocOption=preprocMenu(preprocOption);
-switch preprocOption{:}
-    case 'No pre-processing'
-        preprocOption={'nopp'};
-    case 'BP - CAR (all channels)       ' 
-            preprocOption={'CAR','all'};
-    case 'BP - CAR'
-            preprocOption={'CAR',num2str(handles.channelSelection)};
-    case 'LP - CAR'
-            preprocOption={'CAR','LP'};
-    case 'LFP Lowpass'
-            preprocOption={'LFP'};
-    case 'Bandpass (500 - 6000)'
-        preprocOption={'bandpass'}; 
-    case 'Bandpass - other'
-        preprocOption={'bandpass','select'}; 
-    case 'Normalization'
-        preprocOption={'norm'};
-    case 'Differential filtering'
-        preprocOption={'difffilt'};
-    case 'Lowpass 6000'
-        preprocOption={'lowpass'};
-    case 'Highpass 500'
-        preprocOption={'highpass'};
-    case 'Substract Moving Average'
-        preprocOption={'movav_sub'};
-    case 'Multi-step filtering'
-        preprocOption={'multifilt'};
-    case 'CAR subset only'
-        preprocOption={'CAR_subset'};
-end
-handles.preprocOption=preprocOption{1};
-waitbar( 0.1, wb, ['Pre-processing Data: ' handles.preprocOption]);  
-handles.rawData=PreProcData(handles.rawData,handles.rec_info.samplingRate,preprocOption);
+    preprocMenu=get(handles.LB_ProcessingType,'string');
+    preprocOption=get(handles.LB_ProcessingType,'value');
+    preprocOption=preprocMenu(preprocOption);
+    switch preprocOption{:}
+        case 'No pre-processing'
+            preprocOption={'nopp'};
+        case 'BP - CAR (all channels)       ' 
+                preprocOption={'CAR','all'};
+        case 'BP - CAR'
+                preprocOption={'CAR',num2str(handles.channelSelection)};
+        case 'LP - CAR'
+                preprocOption={'CAR','LP'};
+        case 'LFP Lowpass'
+                preprocOption={'LFP'};
+        case 'Bandpass (500 - 6000)'
+            preprocOption={'bandpass'}; 
+        case 'Bandpass - other'
+            preprocOption={'bandpass','select'}; 
+        case 'Normalization'
+            preprocOption={'norm'};
+        case 'Differential filtering'
+            preprocOption={'difffilt'};
+        case 'Lowpass 6000'
+            preprocOption={'lowpass'};
+        case 'Highpass 500'
+            preprocOption={'highpass'};
+        case 'Substract Moving Average'
+            preprocOption={'movav_sub'};
+        case 'Multi-step filtering'
+            preprocOption={'multifilt'};
+        case 'CAR subset only'
+            preprocOption={'CAR_subset'};
+    end
+    handles.preprocOption=preprocOption{1};
+if get(handles.RB_ExportRaw_dat,'value') || ...
+    get(handles.RB_ExportRaw_mat,'value') || get(handles.RB_ExportRaw_NEV,'value') 
+    waitbar( 0.1, wb, ['Pre-processing Data: ' handles.preprocOption]);  
+    handles.rawData=PreProcData(handles.rawData,handles.rec_info.samplingRate,preprocOption);
 
-if ~isa(handles.rawData,'int16')
-    handles.rawData=int16(handles.rawData);
+    if ~isa(handles.rawData,'int16')
+        handles.rawData=int16(handles.rawData);
+    end
 end
-
 %% Online sorted spikes
 % find file format from directory listing
 dirlisting = dir(handles.dname);

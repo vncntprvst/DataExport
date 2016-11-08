@@ -6,7 +6,7 @@ cd(phyOutputFolder);
 dirListing=dir(phyOutputFolder);
 
 %keep npy files
-npyListing=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.npy'),...
+npyListing=npyListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.npy'),...
     {dirListing.name},'UniformOutput',false)));
 
 %read each file into a data structure
@@ -16,14 +16,15 @@ for fileNum=1:size(npyListing,1)
 end
 
 %get cluster_id	group from csv file
-csvFile=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.csv'),...
+csvFile=npyListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.npy'),...
     {dirListing.name},'UniformOutput',false)));
-formatSpec = '%s%[^\n\r]';
-startRow = 2;
-fileID = fopen(csvFile.name,'r');
-phyData.cluster_ids = textscan(fileID, formatSpec, 'HeaderLines' ,startRow-1);
-fclose(fileID);
-phyData.cluster_ids =[phyData.cluster_ids{:}];
+delimiter = ' ';
+formatSpec = ['%s%s%s%s%s%
+    '%f%f%f%f%f%[^\n\r]'];
+startRow = 1;
+    fileID = fopen(exportVDirListingNames{csvFile},'r');
+cluster_ids = textscan(fileID, formatSpec, 'Delimiter', delimiter,...
+        'MultipleDelimsAsOne', true, 'EmptyValue' ,NaN, 'ReturnOnError', false);
 
 %go back to original directory
 cd(curDir);
