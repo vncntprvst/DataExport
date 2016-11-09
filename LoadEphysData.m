@@ -175,7 +175,10 @@ try
             TTL_times=uint64(find(diff(Trials.continuous>rms(Trials.continuous)*5)))';
             if min(diff(TTL_times))<median(diff(TTL_times))-2
                 %remove spurious pulses
-                return
+                spurPulses=find(diff(TTL_times)<median(diff(TTL_times))-2);
+                spurPulses=sort([spurPulses+1; spurPulses]); %remove also time point before
+                TTL_times(spurPulses)=0;
+                TTL_times=TTL_times(logical(TTL_times));
             end
             if mode(diff(TTL_times))==1 | isempty(TTL_times)%no trials, just artifacts
                 [Trials.start, Trials.end,TTL_ID,Trials]=deal(0);
