@@ -132,69 +132,7 @@ try
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% get TTL times and structure
-    Trials=struct('start',[],'end',[],'interval',[],'sampleRate',[],'continuous',[]);
-    if strfind(fname,'raw.kwd')
-        %% Kwik format - raw data
-        fileListing=dir;
-        fname=regexp(fname,'^\w+\d\_','match');fname=fname{1}(1:end-1);
-        %making sure it exists
-        fname=fileListing(~cellfun('isempty',cellfun(@(x) strfind(x,[fname '.kwe']),{fileListing.name},'UniformOutput',false))).name;
-        Trials=getOE_Trials(fname);
-%        h5readatt(fname,'/recordings/0/','start_time')==0
-        Trials.startClockTime=h5read(fname,'/event_types/Messages/events/time_samples');
-        Trials.startClockTime= Trials.startClockTime(1);
-         % '/recordings/0/','start_time' has systematic
-         % difference with '/event_types/Messages/events/time_samples',
-         % because of the time it takes to open files. 
-    elseif strfind(fname,'continuous')
-        %% Open Ephys old format
-        Trials=getOE_Trials('all_channels.events');
-    elseif strfind(fname,'nex')
-        %% TBSI format
-        % not coded yet
-    elseif strfind(fname,'.ns')
-        %% Blackrock raw data
-        try
-            %analogChannel = openNSxNew([fname(1:end-1) '2']);
-            analogChannel = openNSx([cd userinfo.slash fname(1:end-1) '2']);
-            samplingRate=1000;
-            Trials.continuous=analogChannel.Data;
-        catch
-            try
-                %analogChannel = openNSxNew([fname(1:end-1) '3']);
-                analogChannel = openNSx([cd userinfo.slash fname(1:end-1) '3']);
-                samplingRate=2000;
-                Trials.continuous=analogChannel.Data;
-            catch
-                Trials.continuous=[];
-            end
-        end
-        if ~isempty(Trials.continuous) & ~iscell(Trials.continuous)
-            Trials.sampleRate=analogChannel.MetaTags.SamplingFreq;
-            Trials.continuous=Trials.continuous(end,:)-min(Trials.continuous(end,:));
-            TTL_times=uint64(find(diff(Trials.continuous>rms(Trials.continuous)*5)))';
-            if min(diff(TTL_times))<median(diff(TTL_times))-2
-                %remove spurious pulses
-                spurPulses=find(diff(TTL_times)<median(diff(TTL_times))-2);
-                spurPulses=sort([spurPulses+1; spurPulses]); %remove also time point before
-                TTL_times(spurPulses)=0;
-                TTL_times=TTL_times(logical(TTL_times));
-            end
-            if mode(diff(TTL_times))==1 | isempty(TTL_times)%no trials, just artifacts
-                [Trials.start, Trials.end,TTL_ID,Trials]=deal(0);
-            else
-                Trials.start=find(diff(Trials.continuous>rms(Trials.continuous)*5)==1);
-                Trials.end=find(diff(Trials.continuous<rms(Trials.continuous)*5)==1);
-                TTL_ID=zeros(size(TTL_times,1),1);
-                if Trials.end(1)-Trials.start(1)>0 %as it should
-                    TTL_ID(1:2:end)=1;
-                else
-                    TTL_ID(2:2:end)=1;
-                end
-                Trials=ConvTTLtoTrials(TTL_times,samplingRate,TTL_ID);
-            end
-        end
-    end
+    Trials = LoadTTL(fname);
 catch
     close(wb);
 end
