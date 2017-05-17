@@ -92,8 +92,9 @@ try
         %% Blackrock raw data
         tic;
 %         infoPackets = openCCF([fname(1:end-3) 'ccf'])
-        fileSize=dir(fname);fileSize=fileSize.bytes/10^6;
-        if fileSize>10*10^3 % over 10 gigabytes: read only part of it
+        memoryInfo=memory;
+        fileSize=dir(fname);fileSize=fileSize.bytes/10^9;
+        if fileSize>memoryInfo.MemAvailableAllArrays/10^9-2 % too big, read only part of it
             rec.partialRead=true;
             data = openLongNSx([cd filesep], fname);
 %             % alternatively read only part of the file

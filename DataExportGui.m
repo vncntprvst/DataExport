@@ -125,9 +125,45 @@ else
             subjectName=inputdlg('Enter subject name','Subject Name',1,{handles.fname});
         end
         load([userinfo.probemap filesep 'ImplantList.mat']);
-        probeID=implantList(contains(strrep({implantList.Mouse},'-',''),subjectName{:})).Probe;
+        try
+            probeID=implantList(contains(strrep({implantList.Mouse},'-',''),subjectName{:})).Probe;
+            makeProbeFile=0;
+        catch 
+            implantList(size(implantList,1)+1).Mouse=subjectName{:};
+            probeID=['default_' num2str(handles.rec_info.numRecChan) 'Channels'];
+            implantList(size(implantList,1)).Probe=probeID;
+            cd([userinfo.probemap filesep])
+            save('ImplantList.mat','implantList');
+            makeProbeFile=1;
+        end
     else
-        probeID=['default_' num2str(handles.rec_info.numRecChan) 'Channels'];
+        %create ImplantList.mat and probe map
+        cd('..'); mkdir('probemaps'); cd('probemaps'); userinfo.probemap=cd;
+        implantList.Mouse=subjectName{:};
+        probeID=['defaultProbe_' num2str(handles.rec_info.numRecChan) 'Channels'];
+        implantList.Probe=probeID;
+        save('ImplantList.mat','implantList');
+        makeProbeFile=1;
+    end
+    
+    if makeProbeFile
+        %make probe map file
+        eval([probeID '=struct(''Shank'',[],'...
+            '''Electrode'',[],'...
+            '''IntanHS'',[],'...
+            '''OEChannel'',[],'...
+            '''BlackrockChannel'',[],'...
+            '''Label'',[])'])
+        for chNum=1:handles.rec_info.numRecChan
+            eval([probeID '(chNum).Shank = chNum']);
+            eval([probeID '(chNum).Electrode = chNum']);
+            eval([probeID '(chNum).IntanHS = chNum']);
+            eval([probeID '(chNum).OEChannel = chNum+1']);
+            eval([probeID '(chNum).BlackrockChannel = chNum']);
+        end
+        handles.probeLayout=probeID;
+        eval(['save(''' probeID '.mat'',''probeID'')']);
+        makeProbeFile=0;
     end
     
     remapdlg=inputdlg({'Subject Name','Probe map','Remap ?'},'Enter recording information',...
@@ -770,6 +806,9 @@ if get(handles.CB_SpecifyDir,'value')==0
     exportDir=uigetdir(exportDir,'Select export directory');
     cd(exportDir)
 else
+    if ~exist(exportDir,'dir')
+        mkdir(exportDir);
+    end
     cd(exportDir);
     if ~isdir(cell2mat(regexp(handles.rec_info.expname,'\w+(?=_\w+$)','match')))
         mkdir(cell2mat(regexp(handles.rec_info.expname,'\w+(?=_\w+$)','match'))); %create dir name without preprocOption
