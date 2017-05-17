@@ -60,8 +60,8 @@ elseif contains(fName,'.ns') | contains(fName,'.nev')
         dataDirListing=dataDirListing(~cellfun('isempty',cellfun(@(x) strncmp(x,fName,8) & strfind(x,'.ns'),...
             {dataDirListing.name},'UniformOutput',false)));
         fName=dataDirListing.name;
-        analogChannel = openNSx([cd userinfo.slash fName]);
-        Trials.continuous=analogChannel.Data;
+        analogChannel = openNSx([cd filesep fName]);
+        Trials.continuous=analogChannel.Data(1,:); %send sync TTL to AINP1 
         if ~isempty(Trials.continuous) & ~iscell(Trials.continuous)
             Trials.sampleRate=analogChannel.MetaTags.SamplingFreq;
             Trials.continuous=Trials.continuous(end,:)-min(Trials.continuous(end,:));
@@ -84,7 +84,7 @@ elseif contains(fName,'.ns') | contains(fName,'.nev')
                 else
                     TTL_ID(2:2:end)=1;
                 end
-                Trials=ConvTTLtoTrials(TTL_times,samplingRate,TTL_ID);
+                Trials=ConvTTLtoTrials(TTL_times,Trials.sampleRate,TTL_ID);
             end
         end
     end

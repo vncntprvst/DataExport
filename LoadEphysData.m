@@ -95,7 +95,7 @@ try
         fileSize=dir(fname);fileSize=fileSize.bytes/10^6;
         if fileSize>10*10^3 % over 10 gigabytes: read only part of it
             rec.partialRead=true;
-            data = openLongNSx([cd userinfo.slash], fname);
+            data = openLongNSx([cd filesep], fname);
 %             % alternatively read only part of the file
 %             fileHeader=openNSx([dname fname],'noread');
 %             rec.fileSamples=fileHeader.MetaTags.DataPoints;
@@ -103,7 +103,7 @@ try
 %             splitVector=round(linspace(1,max(rec.fileSamples),round(fileSize/(5*10^3))));
 %             data=openNSx([dname fname],['t:1:' num2str(splitVector(2))] , 'sample');
         else
-            data = openNSx([cd userinfo.slash fname]);
+            data = openNSx([cd filesep fname]);
         end
         if iscell(data.Data) && size(data.Data,2)>1 %gets splitted into two cells sometimes for no reason
             data.Data=[data.Data{:}]; %remove extra data.Data=data.Data(:,1:63068290);
@@ -132,7 +132,11 @@ try
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% get TTL times and structure
-    Trials = LoadTTL(fname);
+    try
+        Trials = LoadTTL(fname);
+    catch
+        Trials = [];
+    end
 catch
     close(wb);
 end
