@@ -1,11 +1,11 @@
-function [rec,data,Trials] = LoadEphysData(fname,dname)
+function [rec,data,trials] = LoadEphysData(fname,dname)
 wb = waitbar( 0, 'Reading Data File...' );
-userinfo=UserDirInfo;
+
 try
     cd(dname);
-    rec.expname=regexp(strrep(dname,'-','_'),'\\\w+','match');
+    rec.dirBranch=regexp(strrep(dname,'-','_'),['\' filesep '\w+'],'match');
     disp(['loading ' dname fname]);
-    if strfind(fname,'continuous')
+    if contains(fname,'continuous')
         %% Open Ephys old format
         %list all .continuous data files
         fileListing=dir;
@@ -23,7 +23,8 @@ try
         rec.samplingRate=recinfo(1).header.sampleRate;
         rec.numRecChan=chNum;
         rec.date=recinfo(1).header.date_created;
-    elseif strfind(fname,'raw.kwd')
+        rec.sys='OEph';
+    elseif contains(fname,'raw.kwd')
         %% Kwik format - raw data
         % The last number in file name from Open-Ephys recording is Node number
         % e.g., experiment1_100.raw.kwd is "raw" recording from Node 100 for
@@ -61,34 +62,36 @@ try
         %     data=h5read(fname,'/recordings/0/data',[1 1],[1 rec.numRecChan(2)]);
         data=h5read(fname,'/recordings/0/data',[1 1],[rec.numRecChan(1) Inf]);
         disp(['took ' num2str(toc) ' seconds to load data']);
-    elseif strfind(fname,'kwik')
+        rec.sys='OEph';
+    elseif contains(fname,'kwik')
         %% Kwik format - spikes
         disp('Check out OE_proc_disp instead');
         return
-    elseif strfind(fname,'nex')
+    elseif contains(fname,'nex')
         %% TBSI format
         %     disp('Only TBSI_proc_disp available right now');
         %     return
         dirlisting = dir(dname);
         dirlisting = {dirlisting(:).name};
-        dirlisting=dirlisting(cellfun('isempty',cellfun(@(x) strfind('.',x(end)),dirlisting,'UniformOutput',false)));
+        dirlisting=dirlisting(cellfun('isempty',cellfun(@(x) contains('.',x(end)),dirlisting,'UniformOutput',false)));
         %get experiment info from note.txt file
         fileID = fopen('note.txt');
         noteInfo=textscan(fileID,'%s');
-        rec.expname{end}=[rec.expname{end}(1) noteInfo{1}{:} '_' rec.expname{end}(2:end)];
+        rec.dirBranch{end}=[rec.dirBranch{end}(1) noteInfo{1}{:} '_' rec.dirBranch{end}(2:end)];
         %get data info from Analog file
-        analogFile=dirlisting(~cellfun('isempty',cellfun(@(x) strfind(x,'Analog'),dirlisting,'UniformOutput',false)));
+        analogFile=dirlisting(~cellfun('isempty',cellfun(@(x) contains(x,'Analog'),dirlisting,'UniformOutput',false)));
         analogData=readNexFile(analogFile{:});
         rec.dur=size(analogData.contvars{1, 1}.data,1);
         rec.samplingRate=analogData.freq;
-        rawfiles=find(~cellfun('isempty',cellfun(@(x) strfind(x,'RAW'),dirlisting,'UniformOutput',false)));
+        rawfiles=find(~cellfun('isempty',cellfun(@(x) contains(x,'RAW'),dirlisting,'UniformOutput',false)));
         rec.numRecChan=length(rawfiles);
         data=nan(rec.numRecChan,rec.dur);
         for fnum=1:rec.numRecChan
             richData=readNexFile(dirlisting{rawfiles(fnum)});
             data(fnum,:)=(richData.contvars{1, 1}.data)';
         end
-    elseif strfind(fname,'.ns')
+        rec.sys='TBSI';
+    elseif contains(fname,'.ns')
         %% Blackrock raw data
         tic;
 %         infoPackets = openCCF([fname(1:end-3) 'ccf'])
@@ -128,15 +131,16 @@ try
         % keep only raw data in data variable
         data=data.Data;
         disp(['took ' num2str(toc) ' seconds to load data']);
+        rec.sys='BR';
     end
     waitbar( 0.9, wb, 'getting TTL times and structure');
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% get TTL times and structure
     try
-        Trials = LoadTTL(fname);
+        trials = LoadTTL(fname);
     catch
-        Trials = [];
+        trials = [];
     end
 catch
     close(wb);

@@ -56,22 +56,32 @@ elseif contains(fName,'.ns') | contains(fName,'.nev')
 %             figure; plot(TTL_shapes(:,~artifactsIdx));
             Trials.start=TTL_times(~artifactsIdx);
     else
-        dataDirListing=dir;
+        if contains(fName,filesep)
+            analogChannel = openNSx(fName);
+        else
+            dataDirListing=dir;
         dataDirListing=dataDirListing(~cellfun('isempty',cellfun(@(x) strncmp(x,fName,8) & strfind(x,'.ns'),...
             {dataDirListing.name},'UniformOutput',false)));
         fName=dataDirListing.name;
         analogChannel = openNSx([cd filesep fName]);
+        end
         Trials.continuous=analogChannel.Data(1,:); %send sync TTL to AINP1 
         if ~isempty(Trials.continuous) & ~iscell(Trials.continuous)
             Trials.sampleRate=analogChannel.MetaTags.SamplingFreq;
             Trials.continuous=Trials.continuous(end,:)-min(Trials.continuous(end,:));
             TTL_times=uint64(find(diff(Trials.continuous>rms(Trials.continuous)*5)))';
-            if min(diff(TTL_times))<median(diff(TTL_times))-2
-                %remove spurious pulses
-                spurPulses=find(diff(TTL_times)<median(diff(TTL_times))-2);
-                spurPulses=sort([spurPulses+1; spurPulses]); %remove also time point before
-                TTL_times(spurPulses)=0;
-                TTL_times=TTL_times(logical(TTL_times));
+            diffTTL=diff(TTL_times);
+            if mode(diff(TTL_times))> 20 %likely stimulation trial
+%                 ampVals=Trials.continuous(TTL_times);
+%                 TTL_times(unique(ampVals));
+            else
+                if min(diffTTL(diffTTL<20))<median(diffTTL(diffTTL<20))
+                    %remove spurious pulses
+                    spurPulses=find(diffTTL(diffTTL<20)<median(diffTTL(diffTTL<20)));
+                    spurPulses=sort([spurPulses+1; spurPulses]); %remove also time point before
+                    TTL_times(spurPulses)=0;
+                    TTL_times=TTL_times(logical(TTL_times));
+                end
             end
             if mode(diff(TTL_times))==1 | isempty(TTL_times)%no trials, just artifacts
                 [Trials.start, Trials.end,TTL_ID,Trials]=deal(0);
@@ -84,7 +94,13 @@ elseif contains(fName,'.ns') | contains(fName,'.nev')
                 else
                     TTL_ID(2:2:end)=1;
                 end
+                
+%                 if diff(Trials.continuous(TTL_times([find(TTL_ID,1)-1, find(TTL_ID,1)])))<0
+%                     figure; plot(Trials.continuous(TTL_times(1)-1000:TTL_times(2)+1000))
+%                 end
+               
                 Trials=ConvTTLtoTrials(TTL_times,Trials.sampleRate,TTL_ID);
+%                     figure; plot(analogChannel.Data(1,Trials.TTL_times(1)-100:Trials.TTL_times(2)+100))
             end
         end
     end
