@@ -49,6 +49,9 @@ try
         %   chanInfo=h5info([regexp(fname,'^[a-z]+1','match','once') '.kwx']);
         %get basic info about recording
         rec.dur=rawInfo.Groups.Datasets.Dataspace.Size;
+        dirlisting = dir(dname);
+        rec.date=dirlisting(cell2mat(cellfun(@(x) contains(x,fname),{dirlisting(:).name},...
+            'UniformOutput',false))).date;
         rec.samplingRate=h5readatt(fname,rawInfo.Groups.Name,'sample_rate');
         rec.bitResolution=0.195; %see Intan RHD2000 Series documentation
         rec.bitDepth=h5readatt(fname,rawInfo.Groups.Name,'bit_depth');

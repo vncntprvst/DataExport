@@ -238,8 +238,8 @@ end
 
 % setting subject name, expecting Letter/Digit combination (e.g. PrV50)
 subjectName=regexp(strrep(handles.fname,'_','-'),'^\w+\d+','match');
-if isempty(subjectName)
-    subjectName=regexp(strrep(handles.dname,'_','-'),'(?<=\\)\w+\d+','match');
+if isempty(subjectName) || contains(subjectName,'experiment') % regexp(subjectName,'^experiment','match')
+    subjectName=regexp(strrep(handles.dname,'_','-'),['(?<=\' filesep ')\w+\d+\w(?=\W)'],'match');
 end
 if size(subjectName,2)>1 %loading from dedicated subject directory
     subjectName=subjectName(1);
@@ -299,7 +299,7 @@ if makeProbeFile
     %     makeProbeFile=0;
 end
 
-load([handles.userinfo.probemap filesep probeID '.mat']);
+load([handles.userinfo.probemap filesep probeID '.mat']); 
 wsVars=who;
 handles.rec_info.probeLayout=eval(wsVars{contains(wsVars,'Probe')});
 handles.rec_info.subjectName=subjectName;
@@ -316,8 +316,16 @@ end
 switch handles.rec_info.dirBranch{cell2mat(cellfun(@(x) strfind(x,'Raw'),...
         handles.rec_info.dirBranch,'UniformOutput',false))+1}(2:end)
     case 'OpenEphys'
+        probeMap=[handles.rec_info.probeLayout.OEChannel];probeMap=probeMap(probeMap>0); %remove duplicates
         [~,chMap]=sort([handles.rec_info.probeLayout.OEChannel]);[~,chMap]=sort(chMap);
         handles.rawData=handles.rawData(chMap,:);
+        %remove floating channels
+        floatCh=[handles.rec_info.probeLayout([handles.rec_info.probeLayout.Shank]==0).OEChannel];
+        if ~isempty(floatCh)
+            floatChIdx=ismember(probeMap,floatCh); floatChIdx(chMap);
+            handles.rawData=handles.rawData(~floatChIdx,:);
+            handles.rec_info.numRecChan=sum(~floatChIdx);
+        end
     case 'Blackrock'
         % check if already mapped
         if isfield(handles.rec_info,'chanID') && sum(diff(handles.rec_info.chanID)>0)==numel(handles.rec_info.chanID)-1
@@ -780,98 +788,19 @@ if ~isfield(handles.trials,'startClockTime') | isempty(handles.trials.startClock
         handles.trials.startClockTime=0; %Recording and TTL times already sync'ed
     end
 end
+
 %% Export
 % userinfo=UserDirInfo;
 waitbar( 0.9, wb, 'Exporting data');
 
-% if strfind(handles.rec_info.dirBranch{end}(2:end),'LY') %regexp(handles.rec_info.dirBranch{end}(2:end),'\_\d\d\d\d\_')
-%     uname='Leeyup';
-% else
-%     uname=getenv('username');
-% end
-
-% if contains(handles.rec_info.dirBranch{end}(2:end),'\_\d\d\d\d\_') %Open Ephys date format
-%     dateStart=regexp(foo,'\_\d\d\d\d\_');
-% elseif regexp(handles.rec_info.dirBranch{end}(2:end),'^\d\d\d\d')
-%     dateStart=0;
-% elseif regexp(handles.rec_info.dirBranch{end}(2:end),'\_\d\d\d\d')
-%     dateStart=regexp(handles.rec_info.dirBranch{end}(2:end),'\_\d\d\d\d');
-% else
-%     try
-%         fileListing=dir(handles.dname);
-%         handles.rec_info.date=fileListing(~cellfun('isempty',strfind({fileListing.name},handles.fname))).date;
-%         handles.rec_info.date=datetime(handles.rec_info.date,'Format','yyyy-MM-dd');
-%         if strfind(handles.fname,'ns')
-%             sessionNum=cell2mat(regexp(handles.fname,'(?<=^\w+\_)\d+(?=\_)','match'));
-%             handles.rec_info.dirBranch{end}=[handles.rec_info.dirBranch{end} '_' sessionNum];
-%         end
-%         dateStart=size(handles.rec_info.dirBranch{end},2);
-%     catch
-%         return;
-%     end
-% end
-% if ~isfield(handles.rec_info,'date')
-%     dateItems=regexp(handles.rec_info.dirBranch{end}(2+dateStart:end),'\d+','match');
-%     try
-%         handles.rec_info.date=[dateItems{1:3} '_' dateItems{4:6}];
-%     catch
-%         handles.rec_info.date=[dateItems{1} '_' dateItems{2:end}];
-%     end
-% else
-%     %     dateItems=regexp(handles.rec_info.date,'\d+','match');
-%     %     try
-%     %         handles.rec_info.date=[dateItems{1:3} '_' dateItems{4:6}];
-%     %     catch
-%     %         handles.rec_info.date=[dateItems{1} '_' dateItems{2:end}];
-%     %     end
-% end
-
-% handles.rec_info.sys=handles.rec_info.dirBranch{end-1}(2:end);
-% switch handles.rec_info.sys
-%     case 'OpenEphys'
-%         handles.rec_info.sys='OEph';
-%     case 'TBSI'
-%         handles.rec_info.sys='TBSI';
-%     case 'Blackrock'
-%         handles.rec_info.sys='BR';
-%     otherwise
-%         switch cell2mat(regexp(handles.fname,'(?<=^\w+\.)\w\w','match'))
-%             case 'ns'
-%                 handles.rec_info.sys='BR';
-%             case 'ra'
-%                 handles.rec_info.sys='OEph';
-%             case 'kw'
-%                 handles.rec_info.sys='OEph';
-%             case 'co'
-%                 handles.rec_info.sys='OEph';
-%             case 'ne'
-%                 handles.rec_info.sys='TBSI';
-%         end
-% end
-
-% Export name
-customFileName=regexp(handles.fname,'.+(?=\..+$)','match');
+%% define export name
+if contains(handles.fname,'experiment') % regexp(subjectName,'^experiment','match')
+    customFileName=regexp(strrep(handles.dname,'_','-'),['(?<=\' filesep ')\S+?(?=\' filesep ')'],'match');
+    customFileName=customFileName(end);
+else
+    customFileName=regexp(handles.fname,'.+(?=\..+$)','match');
+end
 if get(handles.CB_SpecifyName,'value')==0
-    %     switch cell2mat(regexp(strrep(handles.fname,'-','_'),'(?<=^\w+\.)\w\w','match'))
-    %         case 'ns'
-    %             fNameBegin=handles.fname(1:length(cell2mat(regexp(handles.fname,'\w+(?=([a-z]|\_)\d+\.\w+$)','match')))+1);
-    %         case 'ra'
-    %             fNameBegin=strrep([cell2mat(regexp(handles.rec_info.dirBranch,'\w+(?=_OEph)','match')) ...
-    %                 cell2mat(regexp(handles.dname,'(?<=_\d\d-\d\d-\d\d_).+(?=\\$)','match'))],' ','');
-    %         case 'kw'
-    %         case 'co'
-    %         case 'ne'
-    %     end
-    %     fNameEnds=cell2mat(regexp(handles.rec_info.dirBranch,['(?<=' cell2mat(...
-    %         regexp(handles.rec_info.dirBranch,['\w+(?=' handles.rec_info.sys ')'],'match')) ')\w+'],...
-    %         'match')); % ^^
-    %     if regexp(handles.fname,['(?<=' fNameBegin ')\_\d+']) %for BR recordings mostly
-    %         sessionRecNum=cell2mat(regexp(handles.fname,['(?<=' fNameBegin '\_)\d'],'match'));
-    %         customFileName=[fNameBegin sessionRecNum '_' fNameEnds];
-    %     else
-    %         customFileName=[fNameBegin '_' fNameEnds];
-    %     end
-    
     if handles.batchExport==0
         handles.rec_info.exportname=inputdlg('Enter export file name','File Name',1,customFileName);
         handles.rec_info.exportname=handles.rec_info.exportname{:};
@@ -882,8 +811,13 @@ else
     handles.rec_info.exportname=customFileName{:};
 end
 
+if size(handles.rec_info.exportname,2)>30
+    handles.rec_info.exportname=inputdlg('Reduce file name''s length','File Name',1,{handles.rec_info.exportname(1:30)});
+    handles.rec_info.exportname=handles.rec_info.exportname{:};
+end
+
 %% create export folder (if needed), go there and save info
-exportDir=regexprep(handles.userinfo.directory,'\\\w+$','\\export');
+exportDir=regexprep(handles.userinfo.directory,['\' filesep '\w+$'],['\' filesep 'export']);
 if get(handles.CB_SpecifyDir,'value')==0
     exportDir=uigetdir(exportDir,'Select export directory');
     cd(exportDir)
@@ -899,7 +833,8 @@ else
 end
 set(handles.PB_SpikePanel,'UserData',cd);
 
-if get(handles.CB_AddTTLChannel,'value') %adding a TTL Channel to exported data
+%% [optional] adding a TTL Channel to exported data
+if get(handles.CB_AddTTLChannel,'value') 
     if isfield(handles.trials,'continuous')
         TTL_reSampled = handles.trials.continuous - median(handles.trials.continuous);
         TTL_reSampled = resample(double(TTL_reSampled),30,1);
@@ -917,7 +852,7 @@ else
         num2str(size(handles.rawData,1)) 'Ch_'  handles.preprocOption];
 end
 
-% saving info about file and export
+%% saving info about file and export
 save([handles.rec_info.exportname '_info'],'-struct','handles','rec_info','-v7.3');
 fileID = fopen([handles.rec_info.exportname '.txt'],'w');
 if ischar(handles.rec_info.date)
@@ -939,6 +874,8 @@ fprintf(fileID,['%21s\t\t %' num2str(length(num2str(handles.keepChannels'))) 's\
     'exported channels    ',num2str(handles.keepChannels'));
 fclose(fileID);
 %     dataExcerpt=PreProcData(foo,30000,{'CAR','all'}); figure;plot(dataExcerpt(15,:))
+
+%% [optional] export a flat dat file
 if get(handles.RB_ExportRaw_dat,'value')
     if isfield(handles.rec_info,'partialRead') && handles.rec_info.partialRead && ...
             ~get(handles.RB_ExportOnlySample,'value')==1
@@ -952,15 +889,18 @@ if get(handles.RB_ExportRaw_dat,'value')
     end
 end
 
+%% [optional] export data into a .mat file
 if get(handles.RB_ExportRaw_mat,'value')
     save([handles.rec_info.exportname '_raw'],'-struct','handles','rawData','-v7.3');
 end
 
+%% [optional] export spikes 
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
     save([handles.rec_info.exportname '_spikes'],'Spikes','-v7.3');
     save([handles.rec_info.exportname '_trials'],'-struct','handles','Trials','-v7.3');
 end
 
+%% [optional] create .params file for Spyking Circus
 if get(handles.CB_CreateParamsFile,'value')==1
     if ~isfield(handles.rec_info,'probeID')
         handles.rec_info.probeID ='';
@@ -980,6 +920,7 @@ if get(handles.CB_CreateParamsFile,'value')==1
     end
 end
 
+%% [optional] save Blackrock NSx file
 cd(handles.dname)
 if get(handles.RB_ExportRaw_NEV,'value')
     data = openNSxNew([handles.dname handles.fname]);
