@@ -9,7 +9,7 @@ function varargout = DataExportGui(varargin)
 %
 % When opening, will use most recent folder in user's data directory as root
 % Written by Vincent Prevosto, 2016
-% Last Modified by GUIDE v2.5 14-Sep-2017 16:45:18
+% Last Modified by GUIDE v2.5 26-Sep-2017 09:48:02
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -299,7 +299,7 @@ if makeProbeFile
     %     makeProbeFile=0;
 end
 
-load([handles.userinfo.probemap filesep probeID '.mat']); 
+load([handles.userinfo.probemap filesep probeID '.mat']);
 wsVars=who;
 handles.rec_info.probeLayout=eval(wsVars{contains(wsVars,'Probe')});
 handles.rec_info.subjectName=subjectName;
@@ -316,26 +316,30 @@ end
 switch handles.rec_info.dirBranch{cell2mat(cellfun(@(x) strfind(x,'Raw'),...
         handles.rec_info.dirBranch,'UniformOutput',false))+1}(2:end)
     case 'OpenEphys'
-        probeMap=[handles.rec_info.probeLayout.OEChannel];probeMap=probeMap(probeMap>0); %remove duplicates
-        [~,chMap]=sort([handles.rec_info.probeLayout.OEChannel]);[~,chMap]=sort(chMap);
+        channelMap=[handles.rec_info.probeLayout.OEChannel];
+%         In case shank and electrodes order are scrambled:
+%         electrodeMap=[handles.rec_info.probeLayout.Electrode]; [~,electrodeOrder]=sort(electrodeMap);
+%         handles.rec_info.probeLayout=handles.rec_info.probeLayout(electrodeOrder,:); 
+        channelMap=channelMap(channelMap>0); %remove duplicates
+        [~,chMap]=sort(channelMap);[~,chMap]=sort(chMap);
         handles.rawData=handles.rawData(chMap,:);
         %remove floating channels
         floatCh=[handles.rec_info.probeLayout([handles.rec_info.probeLayout.Shank]==0).OEChannel];
         if ~isempty(floatCh)
-            floatChIdx=ismember(probeMap,floatCh); floatChIdx(chMap);
+            floatChIdx=ismember(channelMap,floatCh); floatChIdx(chMap);
             handles.rawData=handles.rawData(~floatChIdx,:);
             handles.rec_info.numRecChan=sum(~floatChIdx);
         end
     case 'Blackrock'
         % check if already mapped
         if isfield(handles.rec_info,'chanID') && sum(diff(handles.rec_info.chanID)>0)==numel(handles.rec_info.chanID)-1
-            probeMap=[handles.rec_info.probeLayout.BlackrockChannel];probeMap=probeMap(probeMap>0); %remove duplicates
-            [~,chMap]=sort(probeMap);[~,chMap]=sort(chMap);
+            channelMap=[handles.rec_info.probeLayout.BlackrockChannel];channelMap=channelMap(channelMap>0); %remove duplicates
+            [~,chMap]=sort(channelMap);[~,chMap]=sort(chMap);
             handles.rawData=handles.rawData(chMap,:);
             %remove floating channels
             floatCh=[handles.rec_info.probeLayout([handles.rec_info.probeLayout.Shank]==0).BlackrockChannel];
             if ~isempty(floatCh)
-                floatChIdx=ismember(probeMap,floatCh); floatChIdx(chMap);
+                floatChIdx=ismember(channelMap,floatCh); floatChIdx(chMap);
                 handles.rawData=handles.rawData(~floatChIdx,:);
                 handles.rec_info.numRecChan=sum(~floatChIdx);
             end
@@ -834,7 +838,7 @@ end
 set(handles.PB_SpikePanel,'UserData',cd);
 
 %% [optional] adding a TTL Channel to exported data
-if get(handles.CB_AddTTLChannel,'value') 
+if get(handles.CB_AddTTLChannel,'value')
     if isfield(handles.trials,'continuous')
         TTL_reSampled = handles.trials.continuous - median(handles.trials.continuous);
         TTL_reSampled = resample(double(TTL_reSampled),30,1);
@@ -894,7 +898,7 @@ if get(handles.RB_ExportRaw_mat,'value')
     save([handles.rec_info.exportname '_raw'],'-struct','handles','rawData','-v7.3');
 end
 
-%% [optional] export spikes 
+%% [optional] export spikes
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
     save([handles.rec_info.exportname '_spikes'],'Spikes','-v7.3');
     save([handles.rec_info.exportname '_trials'],'-struct','handles','Trials','-v7.3');
@@ -907,7 +911,7 @@ if get(handles.CB_CreateParamsFile,'value')==1
     end
     userParams={'raw_binary';num2str(handles.rec_info.samplingRate);'int16';...
         num2str(handles.rec_info.numRecChan);handles.rec_info.probeID;'3';'8';'both';'True';'10000';...
-        '0.002';'True';'0.975';'5, 5';'0.8';'True';'True'};
+        '0.002';'True';'1';'2, 5';'0.8';'True';'True'};
     if handles.batchExport==0
         [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,{'paramsfile';userParams});
     else
@@ -952,6 +956,7 @@ if get(handles.RB_ExportRaw_NEV,'value')
     set(handles.RB_ExportRaw_mat,'value',0);
     set(handles.CB_CreateParamsFile,'value',0);
 end
+
 %% --- Executes on selection change in LB_ExportSampleLocation.
 function LB_ExportSampleLocation_Callback(hObject, eventdata, handles)
 
@@ -1016,4 +1021,37 @@ try
     end
 catch
     system('spyking-circus-launcher & exit &'); %  will only be able to edit params, not run spike sorting
+end
+
+
+% --- Executes on mouse press over axes background.
+function Axes_PreProcessedData_ButtonDownFcn(hObject, eventdata, handles)
+if contains (get(gcf,'SelectionType'),'alt')
+    figure; hold on
+    axis_name= @(x) sprintf('Chan %.0f',x);
+    preprocOption={'CAR','all'};
+    dataOneSecSample=handles.rawData(handles.keepChannels,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
+    [dataOneSecSample_preproc,handles.channelSelection]=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
+    
+    BaseShift=int32(max(abs(max(dataOneSecSample_preproc))));
+    set(gca,'ylim',[-1000,BaseShift...
+        *int32(size(handles.keepChannels,1))+BaseShift])
+    
+    for ChN=1:size(handles.keepChannels,1)
+        ShiftUp=(BaseShift*ChN)-...
+            int32(median(median(dataOneSecSample_preproc(ChN,:))));
+        plot(gca,int32(dataOneSecSample_preproc(ChN,:))+...
+            ShiftUp);
+    end
+    try
+        set(gca,'ytick',linspace(single(BaseShift),single(ShiftUp+...
+            int32(median(median(dataOneSecSample_preproc(ChN,:))))),...
+            single(size(dataOneSecSample_preproc,1))),'yticklabel',...
+            cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    catch
+        set(gca,'ytick',linspace(0,double(int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
+            cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    end
+    xlabel(gca,['Processing option: ' preprocOption{1}])
+    box off; axis tight
 end
