@@ -1,7 +1,7 @@
 function varargout = DataExportGui(varargin)
 % MATLAB code for DataExportGui.fig
 % Exports ephys data from Open Ephys / Blackrock / TBSI systems
-%     Data can be exported as 
+%     Data can be exported as
 %         * continuous data (raw or pre-processed), in .dat and/or .mat format'
 %         * spike data, from online sorting or offline threshold
 %     In addition, parameter file for offline spike sorting can be generated
@@ -9,7 +9,7 @@ function varargout = DataExportGui(varargin)
 %
 % When opening, will use most recent folder in user's data directory as root
 % Written by Vincent Prevosto, 2016
-% Last Modified by GUIDE v2.5 02-Nov-2016 23:14:08
+% Last Modified by GUIDE v2.5 26-Sep-2017 09:48:02
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -37,32 +37,43 @@ function DataExportGui_OpeningFcn(hObject, eventdata, handles, varargin)
 
 % Choose default command line output for DataExportGui
 handles.output = hObject;
-userinfo=UserDirInfo;
+try
+    handles.userinfo=UserDirInfo;
+catch
+    handles.userinfo=[];
+end
 %% get most recently changed data folder
-dataDir=userinfo.directory;
-dataDirListing=dir(dataDir);
-%removing dots
-dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
-    {dataDirListing.name},'UniformOutput',false)));
-%removing other folders
-dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x)...
-    regexp('Behav | DB | ImpedanceChecks | Video | export | example-klusters_neuroscope',x),...
-    {dataDirListing.name},'UniformOutput',false)));
-[~,fDateIdx]=sort([dataDirListing.datenum],'descend');
-recentDataFolder=[dataDir userinfo.slash dataDirListing(fDateIdx(1)).name userinfo.slash];
-%get most recent data folder in that folder if there is one 
-dataDirListing=dir(recentDataFolder);
-%removing dots
-dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
-    {dataDirListing.name},'UniformOutput',false)));
-if size(dataDirListing,1)>0
+if isfield(handles,'dname') && ~isempty(handles.dname)
+    recentDataFolder=handles.dname;
+elseif ~isempty(handles.userinfo)
+    dataDir=handles.userinfo.directory;
+    dataDirListing=dir(dataDir);
+    %removing dots
+    dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
+        {dataDirListing.name},'UniformOutput',false)));
+    %removing other folders
+    dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x)...
+        regexp('Behav | DB | ImpedanceChecks | Video | export | example-klusters_neuroscope',x),...
+        {dataDirListing.name},'UniformOutput',false)));
     [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
-    recentDataFolder=[recentDataFolder userinfo.slash dataDirListing(fDateIdx(1)).name userinfo.slash];
+    recentDataFolder=[dataDir filesep dataDirListing(fDateIdx(1)).name filesep];
+    %get most recent data folder in that folder if there is one
+    dataDirListing=dir(recentDataFolder);
+    %removing dots
+    dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
+        {dataDirListing.name},'UniformOutput',false)));
+    if size(dataDirListing,1)>0
+        [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
+        %     recentDataFolder=[recentDataFolder filesep dataDirListing(fDateIdx(1)).name filesep];
+        recentDataFolder=[recentDataFolder dataDirListing(fDateIdx(1)).name filesep];
+    end
+else
+    recentDataFolder=cd;
 end
 
 %% Get file path
 [handles.fname,handles.dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
-    '*.*','All Files' },'Most recent data',recentDataFolder);
+    '*.*','All Files' },'Select data file to export',recentDataFolder);
 if handles.fname==0
     handles.fname='';
     handles.dname=recentDataFolder;
@@ -74,35 +85,17 @@ guidata(hObject, handles);
 
 %% Load data function
 function handles=LoadData(handles)
-    % function declaration
-    axis_name= @(x) sprintf('Chan %.0f',x);
+% function declaration
+axis_name= @(x) sprintf('Chan %.0f',x);
 if strcmp(handles.fname,'')
     set(handles.FileName,'string','')
 else
     cd(handles.dname);
-    userinfo=UserDirInfo;
-    set(handles.FileName,'string',[handles.dname handles.fname])
-    % disp(['loading ' dname fname]);
-
-    % load channel mapping
-    subjectName=regexp(strrep(handles.dname,'_','-'),'(?<=\\)\w+\d+','match');
-    if isempty(subjectName)
-        subjectName=regexp(strrep(handles.fname,'_','-'),'^\w+\d+','match');
-        if isempty(subjectName)
-           subjectName=inputdlg('Enter subject name','Subject Name',1,{handles.fname});
-        end
-    elseif size(subjectName,2)>1 %loading from dedicated subject directory
-        subjectName=subjectName(1);
-    end
-    load([userinfo.probemap userinfo.slash 'ImplantList.mat']);
-    probeID=implantList(~cellfun('isempty',...
-        strfind(strrep({implantList.Mouse},'-',''),subjectName{:}))).Probe;
-    load([userinfo.probemap userinfo.slash probeID '.mat']);
-    wsVars=who;
-    handles.probeLayout=eval(wsVars{~cellfun('isempty',strfind(wsVars,'Probe'))});
     
     %% Load data
-    [handles.rec_info,handles.rawData,handles.Trials]=LoadEphysData(handles.fname,handles.dname);
+    [handles.rec_info,handles.rawData,handles.trials]=LoadEphysData(handles.fname,handles.dname);
+    
+    %% parallel loading
     % parpool(2)
     % parfor tasknum = 1:2
     %     foo=[];
@@ -118,35 +111,13 @@ else
     %         end
     %         close(wb);
     %     elseif tasknum == 2
-    %         [handles.rec_info,handles.rawData,handles.Trials]=LoadEphysData(handles.fname,handles.dname);
+    %         [handles.rec_info,handles.rawData,handles.trials]=LoadEphysData(handles.fname,handles.dname);
     %     end
     % end
     
-    %remove un-labeled and EMG channels
-    if isfield(handles.probeLayout,'Label') 
-        labeledChans=~cellfun(@(chLabel)~isempty(strfind(chLabel,'chan')) |...
-            ~isempty(strfind(chLabel,'EMG')), {handles.probeLayout.Label});
-        handles.probeLayout=handles.probeLayout(labeledChans);
-        handles.rawData=handles.rawData(labeledChans,:);
-    end
-    %map channels to electrodes
-    switch handles.rec_info.expname{cell2mat(cellfun(@(x) strfind(x,'raw'), handles.rec_info.expname,'UniformOutput',false))+1}(2:end)
-        case 'OpenEphys'
-            [~,chMap]=sort([handles.probeLayout.OEChannel]);[~,chMap]=sort(chMap);
-            handles.rawData=handles.rawData(chMap,:);   
-        case 'Blackrock'
-            % check if already mapped 
-            if isfield(handles.rec_info,'chanID') && sum(diff(handles.rec_info.chanID)==1)==numel(handles.rec_info.chanID)-1
-                [~,chMap]=sort([handles.probeLayout.BlackrockChannel]);[~,chMap]=sort(chMap);
-                handles.rawData=handles.rawData(chMap,:);
-            end
-        case 'TBSI'
-            [~,chMap]=sort([handles.probeLayout.TBSIChannel]);[~,chMap]=sort(chMap);
-            handles.rawData=handles.rawData(chMap,:);
-        otherwise
-            %stay as it is
-            disp('no channel mapping available')
-    end
+    set(handles.FileName,'string',[handles.dname handles.fname])
+    % disp(['loading ' dname fname]);
+
     handles.keepChannels=(1:size(handles.rawData,1))';
     
     %% Plot raw data excerpt
@@ -166,13 +137,13 @@ else
         'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
         round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
     set(handles.Axes_RawData,'ytick',linspace(single(BaseShift),single(ShiftUp+...
-            int32(median(median(dataOneSecSample(ChN,:))))),...
-            single(size(dataOneSecSample,1))),'yticklabel',...
-            cellfun(axis_name, num2cell(1:size(dataOneSecSample,1)), 'UniformOutput', false))
+        int32(median(median(dataOneSecSample(ChN,:))))),...
+        single(size(dataOneSecSample,1))),'yticklabel',...
+        cellfun(axis_name, num2cell(1:size(dataOneSecSample,1)), 'UniformOutput', false))
     %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
     axis('tight');box off;
     set(handles.Axes_RawData,'ylim',[-1000,BaseShift...
-    *int32(size(handles.keepChannels,1))+BaseShift]);
+        *int32(size(handles.keepChannels,1))+BaseShift]);
     xlabel(handles.Axes_RawData,'2 sec mid-recording')
     ylabel(handles.Axes_RawData,'Raw signal')
     set(handles.Axes_RawData,'Color','white','FontSize',12,'FontName','calibri');
@@ -184,7 +155,7 @@ else
     switch preprocOption{:}
         case 'No pre-processing'
             preprocOption={'nopp'};
-        case 'BP - CAR (all channels)       ' 
+        case 'BP - CAR (all channels)       '
             preprocOption={'CAR','all'};
         case 'BP - CAR'
             preprocOption={'CAR'};
@@ -239,18 +210,159 @@ else
     %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
     axis('tight');box off;
     set(handles.Axes_PreProcessedData,'ylim',[-1000,BaseShift...
-    *int32(size(handles.keepChannels,1))+BaseShift]);
+        *int32(size(handles.keepChannels,1))+BaseShift]);
     xlabel(handles.Axes_PreProcessedData,['Processing option: ' preprocOption{1}])
     ylabel(handles.Axes_PreProcessedData,'Pre-processed signal')
     set(handles.Axes_PreProcessedData,'Color','white','FontSize',12,'FontName','calibri');
 end
+
+%% Remap channels
+function PB_remap_Callback(hObject, eventdata, handles)
+if isfield(handles,'remapped') && handles.remapped==true
+    disp('Channels already remapped');
+    return;
+end
+
+% find probe mappings directory
+if ~isfield(handles.userinfo,'probemap')
+    if ~exist('probemaps', 'dir')
+        probemapDir = uigetdir(cd,'select location to store probe mappings');
+        handles.userinfo.probemap=[probemapDir filesep 'probemaps'];
+        mkdir(handles.userinfo.probemap);
+        path(handles.userinfo.probemap,path)
+    else
+        allPathDirs=strsplit(path,pathsep);
+        handles.userinfo.probemap=allPathDirs{find(cellfun(@(pathdir) contains(pathdir,'probemaps'),allPathDirs),1)};
+    end
+end
+% cd(handles.userinfo.probemap);
+
+% setting subject name, expecting Letter/Digit combination (e.g. PrV50)
+subjectName=regexp(strrep(handles.fname,'_','-'),'^\w+\d+','match');
+if isempty(subjectName) || contains(subjectName,'experiment') % regexp(subjectName,'^experiment','match')
+    subjectName=regexp(strrep(handles.dname,'_','-'),['(?<=\' filesep ')\w+\d+\w(?=\W)'],'match');
+end
+if size(subjectName,2)>1 %loading from dedicated subject directory
+    subjectName=subjectName(1);
+end
+if isempty(subjectName)
+    subjectName=handles.fname;
+end
+
+subjectName=subjectName{:};
+
+%% load or create channel mapping
+if exist([handles.userinfo.probemap filesep 'ImplantList.mat'],'file') %the implant list contains
+    %                                                                    a structure with .Probe and .Mouse fields
+    %                                                                    that associates each mouse to its implant number
+    %                                                                    (and thus the probe map)
+    load([handles.userinfo.probemap filesep 'ImplantList.mat']);
+else
+    implantList=struct('Mouse',[],'Probe',[]);
+end
+
+% find Probe ID
+try
+    probeID=implantList(contains(strrep({implantList.Mouse},'-',''),subjectName)).Probe;
+    makeProbeFile=0;
+catch
+    probeID=['default_' num2str(handles.rec_info.numRecChan) 'Channels'];
+    makeProbeFile=1;
+end
+
+remapdlg=inputdlg({'Subject Name','Probe map'},'Enter Subject and Probe identifiers',...
+    1,{subjectName,probeID});
+
+subjectName=remapdlg(1);
+probeID=remapdlg{2};
+
+if makeProbeFile
+    implantList(size(implantList.Mouse,1)+1).Mouse=subjectName;
+    implantList(size(implantList.Mouse,1)).Probe=probeID;
+    cd([handles.userinfo.probemap filesep])
+    save('ImplantList.mat','implantList');
+    %make probe map file
+    eval([probeID '=struct(''Shank'',[],'...
+        '''Electrode'',[],'...
+        '''IntanHS'',[],'...
+        '''OEChannel'',[],'...
+        '''BlackrockChannel'',[],'...
+        '''Label'',[])'])
+    for chNum=1:handles.rec_info.numRecChan
+        eval([probeID '(chNum).Shank = chNum']);
+        eval([probeID '(chNum).Electrode = chNum']);
+        eval([probeID '(chNum).IntanHS = chNum']);
+        eval([probeID '(chNum).OEChannel = chNum+1']);
+        eval([probeID '(chNum).BlackrockChannel = chNum']);
+    end
+    handles.rec_info.probeLayout=probeID;
+    eval(['save(''' probeID '.mat'',''probeID'')']);
+    %     makeProbeFile=0;
+end
+
+load([handles.userinfo.probemap filesep probeID '.mat']);
+wsVars=who;
+handles.rec_info.probeLayout=eval(wsVars{contains(wsVars,'Probe')});
+handles.rec_info.subjectName=subjectName;
+handles.rec_info.probeID=probeID;
+
+%remove un-labeled and EMG channels
+if isfield(handles.rec_info.probeLayout,'Label')
+    labeledChans=~cellfun(@(chLabel)contains(chLabel,'chan') |...
+        contains(chLabel,'EMG'), {handles.rec_info.probeLayout.Label});
+    handles.rec_info.probeLayout=handles.rec_info.probeLayout(labeledChans);
+    handles.rawData=handles.rawData(labeledChans,:);
+end
+%map channels to electrodes
+switch handles.rec_info.dirBranch{cell2mat(cellfun(@(x) strfind(x,'Raw'),...
+        handles.rec_info.dirBranch,'UniformOutput',false))+1}(2:end)
+    case 'OpenEphys'
+        channelMap=[handles.rec_info.probeLayout.OEChannel];
+%         In case shank and electrodes order are scrambled:
+%         electrodeMap=[handles.rec_info.probeLayout.Electrode]; [~,electrodeOrder]=sort(electrodeMap);
+%         handles.rec_info.probeLayout=handles.rec_info.probeLayout(electrodeOrder,:); 
+        channelMap=channelMap(channelMap>0); %remove duplicates
+        [~,chMap]=sort(channelMap);[~,chMap]=sort(chMap);
+        handles.rawData=handles.rawData(chMap,:);
+        %remove floating channels
+        floatCh=[handles.rec_info.probeLayout([handles.rec_info.probeLayout.Shank]==0).OEChannel];
+        if ~isempty(floatCh)
+            floatChIdx=ismember(channelMap,floatCh); floatChIdx(chMap);
+            handles.rawData=handles.rawData(~floatChIdx,:);
+            handles.rec_info.numRecChan=sum(~floatChIdx);
+        end
+    case 'Blackrock'
+        % check if already mapped
+        if isfield(handles.rec_info,'chanID') && sum(diff(handles.rec_info.chanID)>0)==numel(handles.rec_info.chanID)-1
+            channelMap=[handles.rec_info.probeLayout.BlackrockChannel];channelMap=channelMap(channelMap>0); %remove duplicates
+            [~,chMap]=sort(channelMap);[~,chMap]=sort(chMap);
+            handles.rawData=handles.rawData(chMap,:);
+            %remove floating channels
+            floatCh=[handles.rec_info.probeLayout([handles.rec_info.probeLayout.Shank]==0).BlackrockChannel];
+            if ~isempty(floatCh)
+                floatChIdx=ismember(channelMap,floatCh); floatChIdx(chMap);
+                handles.rawData=handles.rawData(~floatChIdx,:);
+                handles.rec_info.numRecChan=sum(~floatChIdx);
+            end
+        end
+    otherwise
+        %stay as it is
+        disp('no channel mapping available')
+end
+
+handles.keepChannels=(1:size(handles.rawData,1))';
+handles.remapped=true;
+
+LB_ProcessingType_Callback(handles.LB_ProcessingType, eventdata, handles);
+
+%%  Update handles structure
+guidata(hObject, handles);
 
 %% --- Outputs from this function are returned to the command line.
 function varargout = DataExportGui_OutputFcn(hObject, eventdata, handles)
 
 % Get default command line output from handles structure
 varargout{1} = handles.output;
-
 
 %% --- Executes on selection change in LB_ProcessingType.
 function LB_ProcessingType_Callback(hObject, eventdata, handles)
@@ -310,13 +422,13 @@ end
 %     'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
 %     round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
 try
-set(handles.Axes_PreProcessedData,'ytick',linspace(single(BaseShift),single(ShiftUp+...
-    int32(median(median(dataOneSecSample_preproc(ChN,:))))),...
-    single(size(dataOneSecSample_preproc,1))),'yticklabel',...
-    cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    set(handles.Axes_PreProcessedData,'ytick',linspace(single(BaseShift),single(ShiftUp+...
+        int32(median(median(dataOneSecSample_preproc(ChN,:))))),...
+        single(size(dataOneSecSample_preproc,1))),'yticklabel',...
+        cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
 catch
     set(handles.Axes_PreProcessedData,'ytick',linspace(0,double(int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
-    cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+        cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
 end
 % %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
 % axis('tight');box off;
@@ -336,32 +448,83 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
-
 %% --- Executes on button press in RB_ExportSpikes_OnlineSort.
 function RB_ExportSpikes_OnlineSort_Callback(hObject, eventdata, handles)
 
-% Hint: get(hObject,'Value') returns toggle state of RB_ExportSpikes_OnlineSort
-
-
 %% --- Executes on button press in RB_ExportSpikes_OfflineSort.
 function RB_ExportSpikes_OfflineSort_Callback(hObject, eventdata, handles)
-
-% Hint: get(hObject,'Value') returns toggle state of RB_ExportSpikes_OfflineSort
-
 
 %% --- Executes on button press in RB_ExportRaw_dat.
 function RB_ExportRaw_dat_Callback(hObject, eventdata, handles)
 
 set(handles.CB_CreateParamsFile,'value',get(handles.RB_ExportRaw_dat,'value'));
 
-
 %% --- Executes on button press in CB_AddTTLChannel.
 function CB_AddTTLChannel_Callback(hObject, eventdata, handles)
 
-% Hint: get(hObject,'Value') returns toggle state of CB_AddTTLChannel
+%% --- Executes on button press in CB_SpecifyDir.
+function CB_SpecifyDir_Callback(hObject, eventdata, handles)
 
+%% --- Executes on button press in CB_ExportWhichChannel.
+function CB_ExportWhichChannel_Callback(hObject, eventdata, handles)
+% hObject    handle to CB_ExportWhichChannel (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
 
-% --- Executes on button press in PB_ExportAll.
+if get(hObject,'Value')==0
+    % channel string
+    chStr= num2str(linspace(1,size(handles.rawData,1),size(handles.rawData,1))');
+    handles.keepChannels= (listdlg('PromptString',...
+        'select channels to keep:','ListString',chStr))';
+else
+    handles.keepChannels=(1:size(handles.rawData,1))';
+end
+
+LB_ProcessingType_Callback(handles.LB_ProcessingType, eventdata, handles);
+
+%%  Update handles structure
+guidata(hObject, handles);
+
+%% --- Executes on selection change in LB_ThresholdSide.
+function LB_ThresholdSide_Callback(hObject, eventdata, handles)
+
+%% --- Executes during object creation, after setting all properties.
+function LB_ThresholdSide_CreateFcn(hObject, eventdata, handles)
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+%% --- Executes on button press in CB_SpecifyName.
+function CB_SpecifyName_Callback(hObject, eventdata, handles)
+
+%% --- Executes on button press in PB_LoadFile.
+function PB_LoadFile_Callback(hObject, eventdata, handles)
+
+[handles.fname,handles.dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
+    '*.*','All Files' },'Most recent data',handles.dname);
+if handles.fname==0
+    handles.fname='';
+    handles.dname='C:\Data';
+end
+handles=LoadData(handles);
+%%  Update handles structure
+guidata(hObject, handles);
+
+function TxEdit_SampleDuration_Callback(hObject, eventdata, handles)
+
+%% --- Executes during object creation, after setting all properties.
+function TxEdit_SampleDuration_CreateFcn(hObject, eventdata, handles)
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+%% --- Executes on button press in PB_ExportAll.
 function PB_ExportAll_Callback(hObject, eventdata, handles)
 
 handles.batchExport=1;
@@ -421,7 +584,7 @@ guidata(hObject, handles);
 if get(handles.RB_ExportOnlySample,'value')==1
     if get(handles.LB_ExportSampleLocation,'value')==1
         handles.rawData=handles.rawData(:,1:handles.rec_info.samplingRate*60*str2double(get(handles.TxEdit_SampleDuration,'String')));
-    elseif get(handles.LB_ExportSampleLocation,'value')==2  
+    elseif get(handles.LB_ExportSampleLocation,'value')==2
         handles.rawData=handles.rawData(:,...
             round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate*30*str2double(get(handles.TxEdit_SampleDuration,'String')):...
             round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate*30*str2double(get(handles.TxEdit_SampleDuration,'String')));
@@ -435,59 +598,59 @@ if get(handles.RB_ExportWithNoSignalCutout,'value')==1
 end
 
 %% pre-process data
-    preprocMenu=get(handles.LB_ProcessingType,'string');
-    preprocOption=get(handles.LB_ProcessingType,'value');
-    preprocOption=preprocMenu(preprocOption);
-    switch preprocOption{:}
-        case 'No pre-processing'
-            preprocOption={'nopp'};
-        case 'BP - CAR (all channels)       ' 
-                preprocOption={'CAR','all'};
-        case 'BP - CAR'
-                preprocOption={'CAR',num2str(handles.channelSelection)};
-        case 'LP - CAR'
-                preprocOption={'CAR','LP'};
-        case 'LFP Lowpass'
-                preprocOption={'LFP'};
-        case 'Bandpass (500 - 6000)'
-            preprocOption={'bandpass'}; 
-        case 'Bandpass - other'
-            preprocOption={'bandpass','select'}; 
-        case 'Normalization'
-            preprocOption={'norm'};
-        case 'Differential filtering'
-            preprocOption={'difffilt'};
-        case 'Lowpass 6000'
-            preprocOption={'lowpass'};
-        case 'Highpass 500'
-            preprocOption={'highpass'};
-        case 'Substract Moving Average'
-            preprocOption={'movav_sub'};
-        case 'Multi-step filtering'
-            preprocOption={'multifilt'};
-        case 'CAR subset only'
-            preprocOption={'CAR_subset'};
-    end
-    handles.preprocOption=preprocOption{1};
+preprocMenu=get(handles.LB_ProcessingType,'string');
+preprocOption=get(handles.LB_ProcessingType,'value');
+preprocOption=preprocMenu(preprocOption);
+switch preprocOption{:}
+    case 'No pre-processing'
+        preprocOption={'nopp'};
+    case 'BP - CAR (all channels)       '
+        preprocOption={'CAR','all'};
+    case 'BP - CAR'
+        preprocOption={'CAR',num2str(handles.channelSelection)};
+    case 'LP - CAR'
+        preprocOption={'CAR','LP'};
+    case 'LFP Lowpass'
+        preprocOption={'LFP'};
+    case 'Bandpass (500 - 6000)'
+        preprocOption={'bandpass'};
+    case 'Bandpass - other'
+        preprocOption={'bandpass','select'};
+    case 'Normalization'
+        preprocOption={'norm'};
+    case 'Differential filtering'
+        preprocOption={'difffilt'};
+    case 'Lowpass 6000'
+        preprocOption={'lowpass'};
+    case 'Highpass 500'
+        preprocOption={'highpass'};
+    case 'Substract Moving Average'
+        preprocOption={'movav_sub'};
+    case 'Multi-step filtering'
+        preprocOption={'multifilt'};
+    case 'CAR subset only'
+        preprocOption={'CAR_subset'};
+end
+handles.preprocOption=preprocOption{1};
 if get(handles.RB_ExportRaw_dat,'value') || ...
-    get(handles.RB_ExportRaw_mat,'value') || get(handles.RB_ExportRaw_NEV,'value') 
-    waitbar( 0.1, wb, ['Pre-processing Data: ' handles.preprocOption]);  
+        get(handles.RB_ExportRaw_mat,'value') || get(handles.RB_ExportRaw_NEV,'value')
+    waitbar( 0.1, wb, ['Pre-processing Data: ' handles.preprocOption]);
     handles.rawData=PreProcData(handles.rawData,handles.rec_info.samplingRate,preprocOption);
-
+    
     if ~isa(handles.rawData,'int16')
         handles.rawData=int16(handles.rawData);
     end
 end
-%% Online sorted spikes
-% find file format from directory listing
-dirlisting = dir(handles.dname);
-dirlisting = {dirlisting(:).name};
-dirlisting=dirlisting(cellfun('isempty',cellfun(@(x) strfind('.',x(end)),dirlisting,'UniformOutput',false)));
-fileformats={'continuous','kwe','kwik','nex','ns6'};
-whichformat=cellfun(@(x) find(~cellfun('isempty',strfind(fileformats,x(end-2:end)))),dirlisting,'UniformOutput',false);
-whichformat=fileformats(unique([whichformat{~cellfun('isempty',whichformat)}]));
 
 if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
+    %% Online sorted spikes
+    % find file format from directory listing
+    dirlisting = dir(handles.dname);
+    dirlisting = {dirlisting(:).name};
+    dirlisting=dirlisting(cellfun('isempty',cellfun(@(x) strfind('.',x(end)),dirlisting,'UniformOutput',false)));
+    fileformats={'continuous','kwe','kwik','nex','ns6'};
+    whichformat=cellfun(@(x) find(~cellfun('isempty',strfind(fileformats,x(end-2:end)))),dirlisting,'UniformOutput',false);
+    whichformat=fileformats(unique([whichformat{~cellfun('isempty',whichformat)}]));
     waitbar( 0.5, wb, 'Getting spikes from online sorting');
     switch whichformat{:}
         case 'continuous'
@@ -500,11 +663,11 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
             RawInfo=h5info('experiment1_100.raw.kwd','/recordings/0/data');
             RecDur=RawInfo.Dataspace.Size;
             
-            %Keep info on ADC resolution 
-%             Spikes.Online_Sorting.Resolution=
+            %Keep info on ADC resolution
+            %             Spikes.Online_Sorting.Resolution=
             
             %Keep list of channels with > 1Hz firing rate
-%             GoodChans=cell(size(ChanInfo.Groups.Groups,1),1);
+            %             GoodChans=cell(size(ChanInfo.Groups.Groups,1),1);
             for ChExN=1:size(ChanInfo.Groups.Groups,1)
                 if ChanInfo.Groups.Groups(ChExN).Datasets(2).Dataspace.Size/(RecDur(2)/handles.rec_info.samplingRate)>1
                     Spikes.Online_Sorting.GoodChans(ChExN)=regexp(ChanInfo.Groups.Groups(ChExN).Name,'\d+$','match');
@@ -526,21 +689,21 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
             end
         case 'nex'
         case 'ns6' % Blackrock
-            SpikeData = openNEV([handles.dname handles.fname(1:end-3) 'nev']); 
-            % ADC resolution is 0.25uV per bit. Divide values by 4 to convert to uV 
+            SpikeData = openNEV([handles.dname handles.fname(1:end-3) 'nev']);
+            % ADC resolution is 0.25uV per bit. Divide values by 4 to convert to uV
             Spikes.Online_Sorting.Resolution={0.25, 'uV per bit'};
-%             GoodChans=unique(SpikeData.Data.Spikes.Electrode);
-%             if size(handles.rawData,1)~=length(GoodChans)
-%                 disp('not as many spiking channels as raw data')
-%             end
-            if sum([SpikeData.ElectrodesInfo([handles.probeLayout.BlackrockChannel]).ElectrodeID]-...
-               uint16([SpikeData.ElectrodesInfo([handles.probeLayout.BlackrockChannel]).ConnectorPin]))==0
+            %             GoodChans=unique(SpikeData.Data.Spikes.Electrode);
+            %             if size(handles.rawData,1)~=length(GoodChans)
+            %                 disp('not as many spiking channels as raw data')
+            %             end
+            if sum([SpikeData.ElectrodesInfo([handles.rec_info.probeLayout.BlackrockChannel]).ElectrodeID]-...
+                    uint16([SpikeData.ElectrodesInfo([handles.rec_info.probeLayout.BlackrockChannel]).ConnectorPin]))==0
                 % recording wasn't mapped
-                GoodChans=[handles.probeLayout.BlackrockChannel];
+                GoodChans=[handles.rec_info.probeLayout.BlackrockChannel];
             else
-                GoodChans=[handles.probeLayout.Electrode];
+                GoodChans=[handles.rec_info.probeLayout.Electrode];
             end
-           
+            
             for ChExN=1:size(GoodChans,2)
                 Spikes.Online_Sorting.electrode(ChExN)=ChExN;
                 Spikes.Online_Sorting.samplingRate(ChExN,1)=SpikeData.MetaTags.SampleRes;
@@ -560,9 +723,9 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
         otherwise
     end
 end
-%% Spike thresholding 
+%% Spike thresholding
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1
-    waitbar( 0.5, wb, 'Getting spike times from RMS threshold'); 
+    waitbar( 0.5, wb, 'Getting spike times from RMS threshold');
     for ChExN=1:size(handles.rawData,1)
         Spikes.Offline_Threshold.electrode(ChExN)=ChExN;
         Spikes.Offline_Threshold.samplingRate(ChExN,1)=handles.rec_info.samplingRate;
@@ -581,17 +744,17 @@ if get(handles.RB_ExportSpikes_OfflineSort,'value')==1
         Spikes.Offline_Threshold.type{ChExN,1}='nativeData';
         
         % plots
-%         figure; hold on;
-%         midRec=round(size(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:),2)/2);
-%         plotWin=5*Spikes.Offline_Threshold.samplingRate;
-%         plot(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),midRec-plotWin:midRec+plotWin));
-%         % plot(handles.rawData(Spikes.Offline_Threshold.electrode,:)+1500);
-%         % thd10=rms((handles.rawData(10,:)));
-%         thld=rms(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:));
-%         plot(-5*thld*ones(1,size(midRec-plotWin:midRec+plotWin,2)));
-%         plot(-40*thld*ones(1,size(midRec-plotWin:midRec+plotWin,2)));
-%         % plot(1500-4*thd*ones(1,size(handles.rawData,2)));
-%         % foo=handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:)>(-40*thld);
+        %         figure; hold on;
+        %         midRec=round(size(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:),2)/2);
+        %         plotWin=5*Spikes.Offline_Threshold.samplingRate;
+        %         plot(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),midRec-plotWin:midRec+plotWin));
+        %         % plot(handles.rawData(Spikes.Offline_Threshold.electrode,:)+1500);
+        %         % thd10=rms((handles.rawData(10,:)));
+        %         thld=rms(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:));
+        %         plot(-5*thld*ones(1,size(midRec-plotWin:midRec+plotWin,2)));
+        %         plot(-40*thld*ones(1,size(midRec-plotWin:midRec+plotWin,2)));
+        %         % plot(1500-4*thd*ones(1,size(handles.rawData,2)));
+        %         % foo=handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:)>(-40*thld);
         
         % plot(Spikes.Offline_Threshold.nativeData*500);
         
@@ -613,159 +776,95 @@ if get(handles.RB_ExportSpikes_OfflineSort,'value')==1
 end
 
 %% get clock time (time at which recording started, to sync with TTLs)
-if ~isfield(handles.Trials,'startClockTime') | isempty(handles.Trials.startClockTime)
-    waitbar( 0.7, wb, 'Getting clock time');  
+if ~isfield(handles.trials,'startClockTime') | isempty(handles.trials.startClockTime)
+    waitbar( 0.7, wb, 'Getting clock time');
     if strfind(handles.fname,'raw.kwd')
         % to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
         % don't use
         % h5readatt(handles.fname,'/recordings/0/','start_time').That
         % start_time happens earlier (like 20ms before). The difference is
         % due to the time it takes to open files
-            handles.Trials.startClockTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
-            handles.Trials.startClockTime=handles.Trials.startClockTime(1);
-
+        handles.trials.startClockTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
+        handles.trials.startClockTime=handles.trials.startClockTime(1);
+        
     elseif strfind(handles.fname,'continuous')
-            handles.Trials.startClockTime=handles.rec_info.startClockTime.ts;
+        handles.trials.startClockTime=handles.rec_info.startClockTime.ts;
     else
-            handles.Trials.startClockTime=0; %Recording and TTL times already sync'ed
+        handles.trials.startClockTime=0; %Recording and TTL times already sync'ed
     end
 end
+
 %% Export
-userinfo=UserDirInfo;
+% userinfo=UserDirInfo;
 waitbar( 0.9, wb, 'Exporting data');
 
-% if strfind(handles.rec_info.expname{end}(2:end),'LY') %regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_')
-%     uname='Leeyup';
-% else
-%     uname=getenv('username');
-% end
-
-if regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_') %Open Ephys date format
-    dateStart=regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d\_');
-elseif regexp(handles.rec_info.expname{end}(2:end),'^\d\d\d\d')
-    dateStart=0;
-elseif regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d')
-    dateStart=regexp(handles.rec_info.expname{end}(2:end),'\_\d\d\d\d');
+%% define export name
+if contains(handles.fname,'experiment') % regexp(subjectName,'^experiment','match')
+    customFileName=regexp(strrep(handles.dname,'_','-'),['(?<=\' filesep ')\S+?(?=\' filesep ')'],'match');
+    customFileName=customFileName(end);
 else
-    try
-        fileListing=dir(handles.dname);
-        handles.rec_info.date=fileListing(~cellfun('isempty',strfind({fileListing.name},handles.fname))).date;
-        handles.rec_info.date=datetime(handles.rec_info.date,'Format','yyyy-MM-dd');
-        if strfind(handles.fname,'ns')
-            sessionNum=cell2mat(regexp(handles.fname,'(?<=^\w+\_)\d+(?=\_)','match'));
-            handles.rec_info.expname{end}=[handles.rec_info.expname{end} '_' sessionNum];
-        end
-        dateStart=size(handles.rec_info.expname{end},2);
-    catch
-        return;
-    end
+    customFileName=regexp(handles.fname,'.+(?=\..+$)','match');
 end
-if ~isfield(handles.rec_info,'date')
-    dateItems=regexp(handles.rec_info.expname{end}(2+dateStart:end),'\d+','match');
-    try
-        handles.rec_info.date=[dateItems{1:3} '_' dateItems{4:6}];
-    catch
-        handles.rec_info.date=[dateItems{1} '_' dateItems{2:end}];
+if get(handles.CB_SpecifyName,'value')==0
+    if handles.batchExport==0
+        handles.rec_info.exportname=inputdlg('Enter export file name','File Name',1,customFileName);
+        handles.rec_info.exportname=handles.rec_info.exportname{:};
+    else
+        handles.rec_info.exportname=customFileName{:};
     end
 else
-%     dateItems=regexp(handles.rec_info.date,'\d+','match');
-%     try
-%         handles.rec_info.date=[dateItems{1:3} '_' dateItems{4:6}];
-%     catch
-%         handles.rec_info.date=[dateItems{1} '_' dateItems{2:end}];
-%     end
+    handles.rec_info.exportname=customFileName{:};
 end
 
-handles.rec_info.sys=handles.rec_info.expname{end-1}(2:end);
-switch handles.rec_info.sys
-    case 'OpenEphys'
-        handles.rec_info.sys='OEph';
-    case 'TBSI'
-        handles.rec_info.sys='TBSI';
-    case 'Blackrock'
-        handles.rec_info.sys='BR';
-    otherwise
-            switch cell2mat(regexp(handles.fname,'(?<=^\w+\.)\w\w','match'))
-                case 'ns'
-                    handles.rec_info.sys='BR';
-                case 'ra'
-                    handles.rec_info.sys='OEph';
-                case 'kw'
-                    handles.rec_info.sys='OEph';
-                case 'co'
-                    handles.rec_info.sys='OEph';
-                case 'ne'
-                    handles.rec_info.sys='TBSI';
-            end
+if size(handles.rec_info.exportname,2)>30
+    handles.rec_info.exportname=inputdlg('Reduce file name''s length','File Name',1,{handles.rec_info.exportname(1:30)});
+    handles.rec_info.exportname=handles.rec_info.exportname{:};
 end
 
-if get(handles.CB_AddTTLChannel,'value') %adding a TTL Channel to exported data
-    if isfield(handles.Trials,'continuous')
-        TTL_reSampled = handles.Trials.continuous - median(handles.Trials.continuous);
+%% create export folder (if needed), go there and save info
+exportDir=regexprep(handles.userinfo.directory,['\' filesep '\w+$'],['\' filesep 'export']);
+if get(handles.CB_SpecifyDir,'value')==0
+    exportDir=uigetdir(exportDir,'Select export directory');
+    cd(exportDir)
+else
+    if ~exist(exportDir,'dir')
+        mkdir(exportDir);
+    end
+    cd(exportDir);
+    if ~isdir(handles.rec_info.exportname)
+        mkdir(handles.rec_info.exportname); %create dir name without preprocOption
+    end
+    cd(handles.rec_info.exportname);
+end
+set(handles.PB_SpikePanel,'UserData',cd);
+
+%% [optional] adding a TTL Channel to exported data
+if get(handles.CB_AddTTLChannel,'value')
+    if isfield(handles.trials,'continuous')
+        TTL_reSampled = handles.trials.continuous - median(handles.trials.continuous);
         TTL_reSampled = resample(double(TTL_reSampled),30,1);
         TTL_reSampled = TTL_reSampled(1:size(handles.rawData,2));
         handles.rawData=[handles.rawData;TTL_reSampled];
     else %need to create one
     end
-%     if isdatetime(handles.rec_info.date)
-%         handles.rec_info.date=datestr(handles.rec_info.date,'yyyy-mm-dd');
-%     end
-    handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
-        handles.rec_info.sys '_' num2str(size(handles.rawData,1)) 'Ch_SyncCh_'  handles.preprocOption];
+    %     if isdatetime(handles.rec_info.date)
+    %         handles.rec_info.date=datestr(handles.rec_info.date,'yyyy-mm-dd');
+    %     end
+    handles.rec_info.exportname=[handles.rec_info.exportname '_'...
+        num2str(size(handles.rawData,1)) 'Ch_WithTTL_'  handles.preprocOption];
 else
-    handles.rec_info.expname=[handles.rec_info.expname{end}(2:dateStart) '_'...
-        handles.rec_info.sys '_' num2str(size(handles.rawData,1)) 'Ch_'  handles.preprocOption];
+    handles.rec_info.exportname=[handles.rec_info.exportname '_'...
+        num2str(size(handles.rawData,1)) 'Ch_'  handles.preprocOption];
 end
 
-if get(handles.CB_SpecifyName,'value')==0
-    switch cell2mat(regexp(strrep(handles.fname,'-','_'),'(?<=^\w+\.)\w\w','match'))
-        case 'ns'
-            fNameBegin=handles.fname(1:length(cell2mat(regexp(handles.fname,'\w+(?=([a-z]|\_)\d+\.\w+$)','match')))+1);      
-        case 'ra'
-            fNameBegin=strrep([cell2mat(regexp(handles.rec_info.expname,'\w+(?=_OEph)','match')) ...
-                cell2mat(regexp(handles.dname,'(?<=_\d\d-\d\d-\d\d_).+(?=\\$)','match'))],' ','');
-        case 'kw'
-        case 'co'
-        case 'ne'
-    end
-    fNameEnds=cell2mat(regexp(handles.rec_info.expname,['(?<=' cell2mat(...
-        regexp(handles.rec_info.expname,['\w+(?=' handles.rec_info.sys ')'],'match')) ')\w+'],...
-        'match')); % ^^
-    if regexp(handles.fname,['(?<=' fNameBegin ')\_\d+']) %for BR recordings mostly
-        sessionRecNum=cell2mat(regexp(handles.fname,['(?<=' fNameBegin '\_)\d'],'match'));
-        customFileName=[fNameBegin sessionRecNum '_' fNameEnds];
-    else
-        customFileName=[fNameBegin '_' fNameEnds];
-    end
-    if handles.batchExport==0
-        handles.rec_info.exportname=inputdlg('Enter export file name','File Name',1,{customFileName});
-        handles.rec_info.exportname=handles.rec_info.exportname{:};
-    else
-      handles.rec_info.exportname=customFileName;
-    end
-else
-    handles.rec_info.exportname=handles.rec_info.expname;
-end
-
-%% create export folder (if needed), go there and save info
-exportDir=regexprep(userinfo.directory,'\\\w+$','\\export');
-if get(handles.CB_SpecifyDir,'value')==0
-    exportDir=uigetdir(exportDir,'Select export directory');
-    cd(exportDir)
-else
-    cd(exportDir);
-    if ~isdir(cell2mat(regexp(handles.rec_info.expname,'\w+(?=_\w+$)','match')))
-        mkdir(cell2mat(regexp(handles.rec_info.expname,'\w+(?=_\w+$)','match'))); %create dir name without preprocOption
-    end
-    cd(cell2mat(regexp(handles.rec_info.expname,'\w+(?=_\w+$)','match')));
-end
-set(handles.PB_SpikePanel,'UserData',cd);
-% saving info about file and export
+%% saving info about file and export
 save([handles.rec_info.exportname '_info'],'-struct','handles','rec_info','-v7.3');
-fileID = fopen([handles.rec_info.exportname '.txt'],'w'); 
+fileID = fopen([handles.rec_info.exportname '.txt'],'w');
 if ischar(handles.rec_info.date)
-    handles.rec_info.date=regexp(handles.dname,'(?<=\d+_\d+_).+(?=\\)','match');
-    handles.rec_info.date=handles.rec_info.date{:};
+    if ~isempty(regexp(handles.dname,'(?<=\d+_\d+_).+(?=\\)','match'))
+        handles.rec_info.date=regexp(handles.dname,'(?<=\d+_\d+_).+(?=\\)','match');
+        handles.rec_info.date=handles.rec_info.date{:};
+    end
     fprintf(fileID,['%21s\t %' num2str(length(handles.rec_info.date)) 's\r'],...
         'recording date       ',handles.rec_info.date);
 else
@@ -780,11 +879,13 @@ fprintf(fileID,['%21s\t\t %' num2str(length(num2str(handles.keepChannels'))) 's\
     'exported channels    ',num2str(handles.keepChannels'));
 fclose(fileID);
 %     dataExcerpt=PreProcData(foo,30000,{'CAR','all'}); figure;plot(dataExcerpt(15,:))
+
+%% [optional] export a flat dat file
 if get(handles.RB_ExportRaw_dat,'value')
     if isfield(handles.rec_info,'partialRead') && handles.rec_info.partialRead && ...
             ~get(handles.RB_ExportOnlySample,'value')==1
         exportBigFile([handles.dname handles.fname],...
-            [handles.rec_info.exportname '.dat'],handles.probeLayout,handles.keepChannels);
+            [handles.rec_info.exportname '.dat'],handles.rec_info.probeLayout,handles.keepChannels);
     else
         fileID = fopen([handles.rec_info.exportname '.dat'],'w');
         fwrite(fileID,handles.rawData,'int16');
@@ -793,20 +894,29 @@ if get(handles.RB_ExportRaw_dat,'value')
     end
 end
 
+%% [optional] export data into a .mat file
 if get(handles.RB_ExportRaw_mat,'value')
-    save([handles.rec_info.exportname '_raw'],'-struct','handles','rawData','-v7.3'); 
+    save([handles.rec_info.exportname '_raw'],'-struct','handles','rawData','-v7.3');
 end
 
+%% [optional] export spikes
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
     save([handles.rec_info.exportname '_spikes'],'Spikes','-v7.3');
     save([handles.rec_info.exportname '_trials'],'-struct','handles','Trials','-v7.3');
 end
 
+%% [optional] create .params file for Spyking Circus
 if get(handles.CB_CreateParamsFile,'value')==1
+    if ~isfield(handles.rec_info,'probeID')
+        handles.rec_info.probeID ='';
+    end
+    userParams={'raw_binary';num2str(handles.rec_info.samplingRate);'int16';...
+        num2str(handles.rec_info.numRecChan);handles.rec_info.probeID;'3';'8';'both';'True';'10000';...
+        '0.002';'True';'1';'2, 5';'0.8';'True';'True'};
     if handles.batchExport==0
-        [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,'paramsfile');
+        [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,{'paramsfile';userParams});
     else
-        [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,'paramsfile_noInputdlg');
+        [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,{'paramsfile_noInputdlg';userParams});
     end
     if status~=1
         disp('problem generating the parameter file')
@@ -815,50 +925,44 @@ if get(handles.CB_CreateParamsFile,'value')==1
     end
 end
 
+%% [optional] save Blackrock NSx file
 cd(handles.dname)
-if get(handles.RB_ExportRaw_NEV,'value') 
-   data = openNSxNew([handles.dname handles.fname]);
-   data.Data=flipud(handles.rawData);
-   saveNSx(data,[handles.rec_info.exportname '_CAR' handles.fname(end-3:end)])
+if get(handles.RB_ExportRaw_NEV,'value')
+    data = openNSxNew([handles.dname handles.fname]);
+    data.Data=flipud(handles.rawData);
+    saveNSx(data,[handles.rec_info.exportname '_CAR' handles.fname(end-3:end)])
 end
 
 close(wb);
 disp(['took ' num2str(toc) ' seconds to export data']);
 
-%% --- Executes on button press in CB_SpecifyDir.
-function CB_SpecifyDir_Callback(hObject, eventdata, handles)
+%% --- Executes on button press in RB_ExportOnlySample.
+function RB_ExportOnlySample_Callback(hObject, eventdata, handles)
 
-% Hint: get(hObject,'Value') returns toggle state of CB_SpecifyDir
+%% --- Executes on button press in RB_ExportRaw_mat.
+function RB_ExportRaw_mat_Callback(hObject, eventdata, handles)
 
+%% --- Executes on button press in RB_ExportWithNoSignalCutout.
+function RB_ExportWithNoSignalCutout_Callback(hObject, eventdata, handles)
 
-%% --- Executes on button press in CB_ExportWhichChannel.
-function CB_ExportWhichChannel_Callback(hObject, eventdata, handles)
-% hObject    handle to CB_ExportWhichChannel (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
+%% --- Executes on button press in CB_CreateParamsFile.
+function CB_CreateParamsFile_Callback(hObject, eventdata, handles)
 
-if get(hObject,'Value')==0
-    % channel string
-   chStr= num2str(linspace(1,size(handles.rawData,1),size(handles.rawData,1))');
-   handles.keepChannels= (listdlg('PromptString',...
-        'select channels to keep:','ListString',chStr))';
-else
-    handles.keepChannels=(1:size(handles.rawData,1))';
+% --- Executes on button press in RB_ExportRaw_NEV.
+function RB_ExportRaw_NEV_Callback(hObject, eventdata, handles)
+if get(handles.RB_ExportRaw_NEV,'value')
+    set(handles.RB_ExportSpikes_OnlineSort,'value',0);
+    set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+    set(handles.RB_ExportRaw_dat,'value',0);
+    set(handles.RB_ExportRaw_mat,'value',0);
+    set(handles.CB_CreateParamsFile,'value',0);
 end
 
-LB_ProcessingType_Callback(handles.LB_ProcessingType, eventdata, handles);
-
-%%  Update handles structure
-guidata(hObject, handles);
-
-%% --- Executes on selection change in LB_ThresholdSide.
-function LB_ThresholdSide_Callback(hObject, eventdata, handles)
-
-% Hints: contents = cellstr(get(hObject,'String')) returns LB_ThresholdSide contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from LB_ThresholdSide
+%% --- Executes on selection change in LB_ExportSampleLocation.
+function LB_ExportSampleLocation_Callback(hObject, eventdata, handles)
 
 %% --- Executes during object creation, after setting all properties.
-function LB_ThresholdSide_CreateFcn(hObject, eventdata, handles)
+function LB_ExportSampleLocation_CreateFcn(hObject, eventdata, handles)
 
 % Hint: listbox controls usually have a white background on Windows.
 %       See ISPC and COMPUTER.
@@ -866,17 +970,17 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
-%% --- Executes on button press in CB_SpecifyName.
-function CB_SpecifyName_Callback(hObject, eventdata, handles)
-
-% Hint: get(hObject,'Value') returns toggle state of CB_SpecifyName
+% --- Executes on button press in PB_exit.
+function PB_exit_Callback(hObject, eventdata, handles)
+close(handles.DataExportFigure);
+clearvars;
 
 %% --- Executes on button press in PB_SpikePanel.
 function PB_SpikePanel_Callback(hObject, eventdata, handles)
 handles.exportDir=hObject.UserData;
 exportDirListing=dir(handles.exportDir);
 handles.spikeFile={exportDirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'_spikes.'),...
-                {exportDirListing.name},'UniformOutput',false))).name};
+    {exportDirListing.name},'UniformOutput',false))).name};
 if size(handles.spikeFile,2)>1
     bestFit=sum(cell2mat(cellfun(@(name) ismember(handles.fname(1:end-4),name(1:size(handles.fname(1:end-4),2))),...
         handles.spikeFile,'UniformOutput',false)'),2);
@@ -887,7 +991,9 @@ if size(handles.spikeFile,2)>1
         handles.spikeFile=handles.spikeFile{1};
     end
 else
-    handles.spikeFile=handles.spikeFile{:};
+    if ~isempty(handles.spikeFile)
+        handles.spikeFile=handles.spikeFile{:};
+    end
 end
 
 hfields = fieldnames(handles);
@@ -899,82 +1005,54 @@ htransfer = cell2struct(hdata(hkeep), hfields(hkeep));
 
 SpikeVisualizationGUI(htransfer);
 
-%% --- Executes on button press in PB_LoadFile.
-function PB_LoadFile_Callback(hObject, eventdata, handles)
-
-[handles.fname,handles.dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
-    '*.*','All Files' },'Most recent data',handles.dname);
-if handles.fname==0
-    handles.fname='';
-    handles.dname='C:\Data';
+% --- Executes on button press in PB_spike_sorting.
+function PB_spike_sorting_Callback(hObject, eventdata, handles)
+if isfield(handles.userinfo,'circusEnv')
+    activation=['activate ' handles.userinfo.circusEnv ' & '];
+else
+    activation='';
 end
-handles=LoadData(handles);
-%%  Update handles structure
-guidata(hObject, handles);
-
-%% --- Executes on selection change in LB_ExportSampleLocation.
-function LB_ExportSampleLocation_Callback(hObject, eventdata, handles)
-
-% Hints: contents = cellstr(get(hObject,'String')) returns LB_ExportSampleLocation contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from LB_ExportSampleLocation
-
-
-%% --- Executes during object creation, after setting all properties.
-function LB_ExportSampleLocation_CreateFcn(hObject, eventdata, handles)
-
-% Hint: listbox controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
+try
+    if contains(getenv('OS'),'Windows')
+        system([activation 'runas /user:' getenv('computername') '\' getenv('username') ...
+            ' spyking-circus-launcher & exit &']);
+    else
+        system([activation 'sudo –u ' getenv('username') ...
+            ' spyking-circus-launcher & exit &']); %UNTESTED !
+    end
+catch
+    system('spyking-circus-launcher & exit &'); %  will only be able to edit params, not run spike sorting
 end
 
 
-function TxEdit_SampleDuration_Callback(hObject, eventdata, handles)
-
-% Hints: get(hObject,'String') returns contents of TxEdit_SampleDuration as text
-%        str2double(get(hObject,'String')) returns contents of TxEdit_SampleDuration as a double
-
-
-%% --- Executes during object creation, after setting all properties.
-function TxEdit_SampleDuration_CreateFcn(hObject, eventdata, handles)
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-%% --- Executes on button press in RB_ExportOnlySample.
-function RB_ExportOnlySample_Callback(hObject, eventdata, handles)
-
-% Hint: get(hObject,'Value') returns toggle state of RB_ExportOnlySample
-
-
-%% --- Executes on button press in RB_ExportRaw_mat.
-function RB_ExportRaw_mat_Callback(hObject, eventdata, handles)
-
-% Hint: get(hObject,'Value') returns toggle state of RB_ExportRaw_mat
-
-
-%% --- Executes on button press in RB_ExportWithNoSignalCutout.
-function RB_ExportWithNoSignalCutout_Callback(hObject, eventdata, handles)
-
-% Hint: get(hObject,'Value') returns toggle state of RB_ExportWithNoSignalCutout
-
-
-%% --- Executes on button press in CB_CreateParamsFile.
-function CB_CreateParamsFile_Callback(hObject, eventdata, handles)
-
-% Hint: get(hObject,'Value') returns toggle state of CB_CreateParamsFile
-
-
-% --- Executes on button press in RB_ExportRaw_NEV.
-function RB_ExportRaw_NEV_Callback(hObject, eventdata, handles)
-if get(handles.RB_ExportRaw_NEV,'value')
-    set(handles.RB_ExportSpikes_OnlineSort,'value',0);
-    set(handles.RB_ExportSpikes_OfflineSort,'value',0);
-    set(handles.RB_ExportRaw_dat,'value',0);
-    set(handles.RB_ExportRaw_mat,'value',0); 
-    set(handles.CB_CreateParamsFile,'value',0);
+% --- Executes on mouse press over axes background.
+function Axes_PreProcessedData_ButtonDownFcn(hObject, eventdata, handles)
+if contains (get(gcf,'SelectionType'),'alt')
+    figure; hold on
+    axis_name= @(x) sprintf('Chan %.0f',x);
+    preprocOption={'CAR','all'};
+    dataOneSecSample=handles.rawData(handles.keepChannels,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
+    [dataOneSecSample_preproc,handles.channelSelection]=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
+    
+    BaseShift=int32(max(abs(max(dataOneSecSample_preproc))));
+    set(gca,'ylim',[-1000,BaseShift...
+        *int32(size(handles.keepChannels,1))+BaseShift])
+    
+    for ChN=1:size(handles.keepChannels,1)
+        ShiftUp=(BaseShift*ChN)-...
+            int32(median(median(dataOneSecSample_preproc(ChN,:))));
+        plot(gca,int32(dataOneSecSample_preproc(ChN,:))+...
+            ShiftUp);
+    end
+    try
+        set(gca,'ytick',linspace(single(BaseShift),single(ShiftUp+...
+            int32(median(median(dataOneSecSample_preproc(ChN,:))))),...
+            single(size(dataOneSecSample_preproc,1))),'yticklabel',...
+            cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    catch
+        set(gca,'ytick',linspace(0,double(int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
+            cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    end
+    xlabel(gca,['Processing option: ' preprocOption{1}])
+    box off; axis tight
 end
