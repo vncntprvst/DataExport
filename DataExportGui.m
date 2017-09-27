@@ -140,6 +140,9 @@ else
                 [~,chMap]=sort([handles.probeLayout.BlackrockChannel]);[~,chMap]=sort(chMap);
                 handles.rawData=handles.rawData(chMap,:);
             end
+        case 'TBSI'
+            [~,chMap]=sort([handles.probeLayout.TBSIChannel]);[~,chMap]=sort(chMap);
+            handles.rawData=handles.rawData(chMap,:);
         otherwise
             %stay as it is
             disp('no channel mapping available')
