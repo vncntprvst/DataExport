@@ -314,8 +314,12 @@ if isfield(handles.rec_info.probeLayout,'Label')
     handles.rawData=handles.rawData(labeledChans,:);
 end
 %map channels to electrodes
-switch handles.rec_info.dirBranch{cell2mat(cellfun(@(x) strfind(x,'Raw'),...
-        handles.rec_info.dirBranch,'UniformOutput',false))+1}(2:end)
+if ~isfield(handles.rec_info,'sys')  
+    handles.rec_info.sys=handles.rec_info.dirBranch{cellfun(@(folders) ...
+        contains(folders,'OpenEphys') || contains(folders,'Blackrock') ,handles.rec_info.dirBranch)};
+    handles.rec_info.sys=regexprep(handles.rec_info.sys,'\W','');
+end
+switch handles.rec_info.sys
     case 'OpenEphys'
         channelMap=[handles.rec_info.probeLayout.OEChannel];
 %         In case shank and electrodes order are scrambled:

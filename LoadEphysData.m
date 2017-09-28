@@ -23,7 +23,7 @@ try
         rec.samplingRate=recinfo(1).header.sampleRate;
         rec.numRecChan=chNum;
         rec.date=recinfo(1).header.date_created;
-        rec.sys='OEph';
+        rec.sys='OpenEphys';
     elseif contains(fname,'raw.kwd')
         %% Kwik format - raw data
         % The last number in file name from Open-Ephys recording is Node number
@@ -65,7 +65,7 @@ try
         %     data=h5read(fname,'/recordings/0/data',[1 1],[1 rec.numRecChan(2)]);
         data=h5read(fname,'/recordings/0/data',[1 1],[rec.numRecChan(1) Inf]);
         disp(['took ' num2str(toc) ' seconds to load data']);
-        rec.sys='OEph';
+        rec.sys='OpenEphys';
     elseif contains(fname,'kwik')
         %% Kwik format - spikes
         disp('Check out OE_proc_disp instead');
@@ -134,7 +134,7 @@ try
         % keep only raw data in data variable
         data=data.Data;
         disp(['took ' num2str(toc) ' seconds to load data']);
-        rec.sys='BR';
+        rec.sys='Blackrock';
     end
     waitbar( 0.9, wb, 'getting TTL times and structure');
     
