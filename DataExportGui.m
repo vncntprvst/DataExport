@@ -327,7 +327,20 @@ switch handles.rec_info.sys
 %         handles.rec_info.probeLayout=handles.rec_info.probeLayout(electrodeOrder,:); 
         channelMap=channelMap(channelMap>0); %remove duplicates
         [~,chMap]=sort(channelMap);[~,chMap]=sort(chMap);
-        handles.rawData=handles.rawData(chMap,:);
+        try
+            handles.rawData=handles.rawData(chMap,:);
+        catch
+            goodChId=[handles.rec_info.probeLayout.Shank]~=0;
+            allCh=[handles.rec_info.probeLayout.OEChannel];
+            goodCh=allCh(goodChId);
+            chMap=chMap(ismember(chMap,goodCh));
+            try
+                handles.rawData=handles.rawData(chMap,:);
+            catch
+                [~,chMap]=sort(chMap);[~,chMap]=sort(chMap);
+                handles.rawData=handles.rawData(chMap,:);
+            end
+        end
         %remove floating channels
         floatCh=[handles.rec_info.probeLayout([handles.rec_info.probeLayout.Shank]==0).OEChannel];
         if ~isempty(floatCh)
@@ -340,7 +353,20 @@ switch handles.rec_info.sys
         if isfield(handles.rec_info,'chanID') && sum(diff(handles.rec_info.chanID)>0)==numel(handles.rec_info.chanID)-1
             channelMap=[handles.rec_info.probeLayout.BlackrockChannel];channelMap=channelMap(channelMap>0); %remove duplicates
             [~,chMap]=sort(channelMap);[~,chMap]=sort(chMap);
+            try
             handles.rawData=handles.rawData(chMap,:);
+            catch
+                goodChId=[handles.rec_info.probeLayout.Shank]~=0;
+                allCh=[handles.rec_info.probeLayout.BlackrockChannel];
+                goodCh=allCh(goodChId);
+                chMap=chMap(ismember(chMap,goodCh));
+                try
+                    handles.rawData=handles.rawData(chMap,:);
+                catch
+                    [~,chMap]=sort(chMap);[~,chMap]=sort(chMap);
+                    handles.rawData=handles.rawData(chMap,:);
+                end
+            end
             %remove floating channels
             floatCh=[handles.rec_info.probeLayout([handles.rec_info.probeLayout.Shank]==0).BlackrockChannel];
             if ~isempty(floatCh)
