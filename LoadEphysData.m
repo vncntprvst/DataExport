@@ -1,8 +1,7 @@
 function [rec,data,trials] = LoadEphysData(fname,dname)
 wb = waitbar( 0, 'Reading Data File...' );
-
+cd(dname);
 try
-    cd(dname);
     rec.dirBranch=regexp(strrep(dname,'-','_'),['\' filesep '\w+'],'match');
     disp(['loading ' dname fname]);
     if contains(fname,'continuous')

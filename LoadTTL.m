@@ -1,6 +1,6 @@
 function Trials = LoadTTL(fName)
 % get TTL times and structure
-userinfo=UserDirInfo;
+% userinfo=UserDirInfo;
 Trials=struct('start',[],'end',[],'interval',[],'sampleRate',[],'continuous',[]);
 if contains(fName,'raw.kwd')
     %% Kwik format - raw data
@@ -32,7 +32,7 @@ elseif contains(fName,'.npy')
     exportDirListing=dir(cd); %regexp(cd,'\w+$','match')
     Trials=importdata(exportDirListing(~cellfun('isempty',cellfun(@(x) contains(x,'_trials.'),...
         {exportDirListing.name},'UniformOutput',false))).name);
-elseif contains(fName,'.ns') | contains(fName,'.nev')
+elseif contains(fName,'.ns') || contains(fName,'.nev')
     %% Blackrock raw data. File extension depends on sampling rate
     %         500 S/s: Records at 500 samples/second. Saved as NS1 file.
     %         1 kS/s: Records at 1k samples/second. Saved as NS2 file.
@@ -42,66 +42,38 @@ elseif contains(fName,'.ns') | contains(fName,'.nev')
     %         Raw: Records the raw data at 30k samples/second. Saved as NS6 file.
     
     if contains(fName,'.nev')
-        %         NEV=openNEV('read', [dirName '\' fName]);
+        %         NEV=openNEV('read', [dirName filesep fName]);
         load([fName(1:end-3), 'mat'])
         Trials.sampleRate=NEV.MetaTags.SampleRes;
         %find which analog channel has inputs
-        TTLChannel=NEV.ElectrodesInfo(cellfun(@(x) contains(x','ain'),...
-            {NEV.ElectrodesInfo.ElectrodeLabel}) & ...
-            [NEV.ElectrodesInfo.DigitalFactor]>1000 & ...
-            [NEV.ElectrodesInfo.HighThreshold]>0).ElectrodeID;
-            TTL_times=NEV.Data.Spikes.TimeStamp(NEV.Data.Spikes.Electrode==TTLChannel);
-            TTL_shapes=NEV.Data.Spikes.Waveform(:,NEV.Data.Spikes.Electrode==TTLChannel);
-            artifactsIdx=median(TTL_shapes)<mean(median(TTL_shapes))/10;
-%             figure; plot(TTL_shapes(:,~artifactsIdx));
-            Trials.start=TTL_times(~artifactsIdx);
+        TTLChannel=cellfun(@(x) contains(x','ain'),{NEV.ElectrodesInfo.ElectrodeLabel}) & ...
+            [NEV.ElectrodesInfo.DigitalFactor]>1000 & [NEV.ElectrodesInfo.HighThreshold]>0;
+        if sum(TTLChannel)==0 %then assume TTL was AIN 1
+            TTLChannel=cellfun(@(x) contains(x','ainp1'),{NEV.ElectrodesInfo.ElectrodeLabel}) & ...
+                [NEV.ElectrodesInfo.DigitalFactor]>1000;
+        end
+        TTLChannel=NEV.ElectrodesInfo(TTLChannel).ElectrodeID;
+        TTL_times=NEV.Data.Spikes.TimeStamp(NEV.Data.Spikes.Electrode==TTLChannel);
+        TTL_shapes=NEV.Data.Spikes.Waveform(:,NEV.Data.Spikes.Electrode==TTLChannel);
+        artifactsIdx=median(TTL_shapes)<mean(median(TTL_shapes))/10;
+        %             figure; plot(TTL_shapes(:,~artifactsIdx));
+        Trials.start=TTL_times(~artifactsIdx);
     else
         if contains(fName,filesep)
             analogChannel = openNSx(fName);
-        else
+        else 
             dataDirListing=dir;
-        dataDirListing=dataDirListing(~cellfun('isempty',cellfun(@(x) strncmp(x,fName,8) & strfind(x,'.ns'),...
-            {dataDirListing.name},'UniformOutput',false)));
-        fName=dataDirListing.name;
-        analogChannel = openNSx([cd filesep fName]);
+            dataDirListing=dataDirListing(~cellfun('isempty',cellfun(@(x)...
+                strcmp(x(1:end-4),fName(1:end-4)) & strfind(x,'.ns2'),... %assuming TTL recorded at 1kHz
+                {dataDirListing.name},'UniformOutput',false)));
+            fName=dataDirListing.name;
+            analogChannel = openNSx([cd filesep fName]);
         end
-        Trials.continuous=analogChannel.Data(1,:); %send sync TTL to AINP1 
-        if ~isempty(Trials.continuous) & ~iscell(Trials.continuous)
-            Trials.sampleRate=analogChannel.MetaTags.SamplingFreq;
-            Trials.continuous=Trials.continuous(end,:)-min(Trials.continuous(end,:));
-            TTL_times=uint64(find(diff(Trials.continuous>rms(Trials.continuous)*5)))';
-            diffTTL=diff(TTL_times);
-            if mode(diff(TTL_times))> 20 %likely stimulation trial
-%                 ampVals=Trials.continuous(TTL_times);
-%                 TTL_times(unique(ampVals));
-            else
-                if min(diffTTL(diffTTL<20))<median(diffTTL(diffTTL<20))
-                    %remove spurious pulses
-                    spurPulses=find(diffTTL(diffTTL<20)<median(diffTTL(diffTTL<20)));
-                    spurPulses=sort([spurPulses+1; spurPulses]); %remove also time point before
-                    TTL_times(spurPulses)=0;
-                    TTL_times=TTL_times(logical(TTL_times));
-                end
-            end
-            if mode(diff(TTL_times))==1 | isempty(TTL_times)%no trials, just artifacts
-                [Trials.start, Trials.end,TTL_ID,Trials]=deal(0);
-            else
-                Trials.start=find(diff(Trials.continuous>rms(Trials.continuous)*5)==1);
-                Trials.end=find(diff(Trials.continuous<rms(Trials.continuous)*5)==1);
-                TTL_ID=zeros(size(TTL_times,1),1);
-                if Trials.end(1)-Trials.start(1)>0 %as it should
-                    TTL_ID(1:2:end)=1;
-                else
-                    TTL_ID(2:2:end)=1;
-                end
-                
-%                 if diff(Trials.continuous(TTL_times([find(TTL_ID,1)-1, find(TTL_ID,1)])))<0
-%                     figure; plot(Trials.continuous(TTL_times(1)-1000:TTL_times(2)+1000))
-%                 end
-               
-                Trials=ConvTTLtoTrials(TTL_times,Trials.sampleRate,TTL_ID);
-%                     figure; plot(analogChannel.Data(1,Trials.TTL_times(1)-100:Trials.TTL_times(2)+100))
-            end
+        Trials.continuous=analogChannel.Data(cellfun(@(x) contains(x,'ainp1'),...
+            {analogChannel.ElectrodesInfo.Label}),:); %send sync TTL to AINP1
+        if ~isempty(Trials.continuous) && ~iscell(Trials.continuous)
+            [TTLtimes,TTLdur]=ContinuousToTTL(Trials.continuous);
+            Trials=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
         end
     end
 end
