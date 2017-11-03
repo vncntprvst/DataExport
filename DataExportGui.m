@@ -41,6 +41,7 @@ try
     handles.userinfo=UserDirInfo;
 catch
     handles.userinfo=[];
+    handles.userinfo.user=getenv('username');
 end
 %% get most recently changed data folder
 if isfield(handles,'dname') && ~isempty(handles.dname)
@@ -52,9 +53,9 @@ elseif ~isempty(handles.userinfo)
     dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
         {dataDirListing.name},'UniformOutput',false)));
     %removing other folders
-    dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x)...
-        regexp('Behav | DB | ImpedanceChecks | Video | export | example-klusters_neuroscope',x),...
-        {dataDirListing.name},'UniformOutput',false)));
+%     dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x)...
+%         regexp('Behav | DB | ImpedanceChecks | Video | export | example-klusters_neuroscope',x),...
+%         {dataDirListing.name},'UniformOutput',false)));
     [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
     recentDataFolder=[dataDir filesep dataDirListing(fDateIdx(1)).name filesep];
     %get most recent data folder in that folder if there is one
@@ -350,29 +351,38 @@ switch handles.rec_info.sys
         end
     case 'Blackrock'
         % check if already mapped
-        if isfield(handles.rec_info,'chanID') && sum(diff(handles.rec_info.chanID)>0)==numel(handles.rec_info.chanID)-1
-            channelMap=[handles.rec_info.probeLayout.BlackrockChannel];channelMap=channelMap(channelMap>0); %remove duplicates
-            [~,chMap]=sort(channelMap);[~,chMap]=sort(chMap);
-            try
-            handles.rawData=handles.rawData(chMap,:);
-            catch
-                goodChId=[handles.rec_info.probeLayout.Shank]~=0;
-                allCh=[handles.rec_info.probeLayout.BlackrockChannel];
-                goodCh=allCh(goodChId);
-                chMap=chMap(ismember(chMap,goodCh));
+        if sum(diff(handles.rec_info.chanID)>0)==numel(handles.rec_info.chanID)-1
+            channelMap=[handles.rec_info.probeLayout.BlackrockChannel];  
+            if isfield(handles.rec_info,'chanID')
+                [~,chMap]=sort(channelMap(ismember(channelMap,handles.rec_info.chanID)));
                 try
                     handles.rawData=handles.rawData(chMap,:);
                 catch
-                    [~,chMap]=sort(chMap);[~,chMap]=sort(chMap);
-                    handles.rawData=handles.rawData(chMap,:);
                 end
-            end
-            %remove floating channels
-            floatCh=[handles.rec_info.probeLayout([handles.rec_info.probeLayout.Shank]==0).BlackrockChannel];
-            if ~isempty(floatCh)
-                floatChIdx=ismember(channelMap,floatCh); floatChIdx(chMap);
-                handles.rawData=handles.rawData(~floatChIdx,:);
-                handles.rec_info.numRecChan=sum(~floatChIdx);
+            else
+                channelMap=channelMap(channelMap>0); %remove duplicates
+                [~,chMap]=sort(channelMap);[~,chMap]=sort(chMap);
+                try
+                    handles.rawData=handles.rawData(chMap,:);
+                catch
+                    goodChId=[handles.rec_info.probeLayout.Shank]~=0;
+                    allCh=[handles.rec_info.probeLayout.BlackrockChannel];
+                    goodCh=allCh(goodChId);
+                    chMap=chMap(ismember(chMap,goodCh));
+                    try
+                        handles.rawData=handles.rawData(chMap,:);
+                    catch
+                        [~,chMap]=sort(chMap);[~,chMap]=sort(chMap);
+                        handles.rawData=handles.rawData(chMap,:);
+                    end
+                end
+                %remove floating channels
+                floatCh=[handles.rec_info.probeLayout([handles.rec_info.probeLayout.Shank]==0).BlackrockChannel];
+                if ~isempty(floatCh)
+                    floatChIdx=ismember(channelMap,floatCh); floatChIdx(chMap);
+                    handles.rawData=handles.rawData(~floatChIdx,:);
+                    handles.rec_info.numRecChan=sum(~floatChIdx);
+                end
             end
         end
     otherwise
