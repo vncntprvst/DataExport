@@ -5,7 +5,7 @@ TTLsProperties=regionprops(TTLs,'Area','PixelIdxList');
 
 %remove artifacts
 pulseDur=mode([TTLsProperties.Area]);
-TTLsProperties=TTLsProperties([TTLsProperties.Area]>=(pulseDur-1) & [TTLsProperties.Area]<=(pulseDur+1));
+TTLsProperties=TTLsProperties([TTLsProperties.Area]>=max([(pulseDur-1) 2]) & [TTLsProperties.Area]<=(pulseDur+1));
 TTLtimes=cellfun(@(timeIndex) timeIndex(1), {TTLsProperties.PixelIdxList});
 TTLdur=[TTLsProperties.Area];
 

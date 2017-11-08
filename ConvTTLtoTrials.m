@@ -11,7 +11,7 @@ Trials.samplingRate=samplingRate;
 TTLseq=diff(Trials.TTLtimes)./(Trials.samplingRate/1000); % convert to ms
 [~,occurence]=unique(TTLseq);
 
-if occurence(1)/sum(occurence)*100>95 % stimulations
+if occurence(1)/sum(occurence)*100>50 % stimulations
     % in Stimulation recordings, there are only Pulse onsets, i.e., no
     % double TTL to start, and no TTL to end
     Trials.start=Trials.TTLtimes;
