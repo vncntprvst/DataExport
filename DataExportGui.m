@@ -863,8 +863,13 @@ if size(handles.rec_info.exportname,2)>30
 end
 
 %% create export folder (if needed), go there and save info
-exportDir=regexprep(handles.userinfo.directory,['\' filesep '\w+$'],['\' filesep 'export']);
+exportDir=cd;
 if get(handles.CB_SpecifyDir,'value')==0
+    try
+        exportDir=regexprep(handles.userinfo.directory,['\' filesep '\w+$'],['\' filesep 'export']);
+    catch
+        exportDir=cd;
+    end
     exportDir=uigetdir(exportDir,'Select export directory');
     cd(exportDir)
 else
@@ -872,10 +877,10 @@ else
         mkdir(exportDir);
     end
     cd(exportDir);
-    if ~isdir(handles.rec_info.exportname)
-        mkdir(handles.rec_info.exportname); %create dir name without preprocOption
-    end
-    cd(handles.rec_info.exportname);
+%     if ~isdir(handles.rec_info.exportname)
+%         mkdir(handles.rec_info.exportname); %create dir name without preprocOption
+%     end
+%     cd(handles.rec_info.exportname);
 end
 set(handles.PB_SpikePanel,'UserData',cd);
 
