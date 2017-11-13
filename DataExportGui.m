@@ -239,7 +239,7 @@ end
 % cd(handles.userinfo.probemap);
 
 % setting subject name, expecting Letter/Digit combination (e.g. PrV50)
-subjectName=regexp(strrep(handles.fname,'_','-'),'^\w+\d+','match');
+subjectName=regexp(strrep(handles.fname,'_','-'),'^\w+\d+(\w)?','match');
 if isempty(subjectName) || contains(subjectName,'experiment') % regexp(subjectName,'^experiment','match')
     subjectName=regexp(strrep(handles.dname,'_','-'),['(?<=\' filesep ')\w+\d+\w(?=\W)'],'match');
 end
@@ -264,7 +264,7 @@ end
 
 % find Probe ID
 try
-    probeID=implantList(contains(strrep({implantList.Mouse},'-',''),subjectName)).Probe;
+    probeID=implantList(contains(strrep({implantList.Mouse},'-',''),subjectName,'IgnoreCase',true)).Probe;
     makeProbeFile=0;
 catch
     probeID=['default_' num2str(handles.rec_info.numRecChan) 'Channels'];
@@ -354,7 +354,8 @@ switch handles.rec_info.sys
         if sum(diff(handles.rec_info.chanID)>0)==numel(handles.rec_info.chanID)-1
             channelMap=[handles.rec_info.probeLayout.BlackrockChannel];  
             if isfield(handles.rec_info,'chanID')
-                [~,chMap]=sort(channelMap(ismember(channelMap,handles.rec_info.chanID)));
+                chMap=channelMap(ismember(channelMap,handles.rec_info.chanID));
+%                 [~,chMap]=sort(channelMap(ismember(channelMap,handles.rec_info.chanID)));
                 try
                     handles.rawData=handles.rawData(chMap,:);
                 catch
