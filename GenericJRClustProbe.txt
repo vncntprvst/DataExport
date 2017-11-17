@@ -1,0 +1,13 @@
+% Order of the probe sites in the recording file
+channels = [ ];
+
+% Site coordinate (x,y) in micrometers
+geometry = [ ]';
+
+% Dimensions of the recording pad (height by width in micrometers).
+pad = [ ]; % 
+
+% Shank number for each site #. For example shank=[1,1,1,1,2,2,2,2] will assign site 1-4 to shank 1 and site 5-8 to shank 2.
+shank = [ ]; 
+
+maxSite = [ ]; % Max. distance to neighboring sites to consider merging

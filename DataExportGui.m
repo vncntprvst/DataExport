@@ -2,14 +2,14 @@ function varargout = DataExportGui(varargin)
 % MATLAB code for DataExportGui.fig
 % Exports ephys data from Open Ephys / Blackrock / TBSI systems
 %     Data can be exported as
-%         * continuous data (raw or pre-processed), in .dat and/or .mat format'
+%         * continuous data (raw or pre-processed), in .dat and/or .mat format
 %         * spike data, from online sorting or offline threshold
-%     In addition, parameter file for offline spike sorting can be generated
+%     In addition, parameter and configuration files for offline spike sorting can be generated
 %     Can also export excerpt, instead of full data file
 %
 % When opening, will use most recent folder in user's data directory as root
-% Written by Vincent Prevosto, 2016
-% Last Modified by GUIDE v2.5 26-Sep-2017 09:48:02
+% Written by Vincent Prevosto, 2016/2017
+% Last Modified by GUIDE v2.5 16-Nov-2017 12:21:32
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -354,8 +354,8 @@ switch handles.rec_info.sys
         if sum(diff(handles.rec_info.chanID)>0)==numel(handles.rec_info.chanID)-1
             channelMap=[handles.rec_info.probeLayout.BlackrockChannel];  
             if isfield(handles.rec_info,'chanID')
-                chMap=channelMap(ismember(channelMap,handles.rec_info.chanID));
-%                 [~,chMap]=sort(channelMap(ismember(channelMap,handles.rec_info.chanID)));
+                [~,chMap]=sort(channelMap(ismember(channelMap,handles.rec_info.chanID)));
+                [~,chMap]=sort(chMap);
                 try
                     handles.rawData=handles.rawData(chMap,:);
                 catch
@@ -498,10 +498,13 @@ function RB_ExportSpikes_OfflineSort_Callback(hObject, eventdata, handles)
 %% --- Executes on button press in RB_ExportRaw_dat.
 function RB_ExportRaw_dat_Callback(hObject, eventdata, handles)
 
-set(handles.CB_CreateParamsFile,'value',get(handles.RB_ExportRaw_dat,'value'));
+set(handles.CB_CreateSCParamsFile,'value',get(handles.RB_ExportRaw_dat,'value'));
 
 %% --- Executes on button press in CB_AddTTLChannel.
 function CB_AddTTLChannel_Callback(hObject, eventdata, handles)
+ 
+% --- Executes on button press in CB_ExportTTL.
+function CB_ExportTTL_Callback(hObject, eventdata, handles)
 
 %% --- Executes on button press in CB_SpecifyDir.
 function CB_SpecifyDir_Callback(hObject, eventdata, handles)
@@ -574,39 +577,262 @@ set(handles.LB_ProcessingType,'value',1);
 set(handles.RB_ExportRaw_dat,'value',1);
 set(handles.RB_ExportRaw_mat,'value',0);
 set(handles.RB_ExportRaw_NEV,'value',0);
-set(handles.CB_CreateParamsFile,'value',1);
+set(handles.CB_CreateSCParamsFile,'value',1);
 set(handles.RB_ExportSpikes_OnlineSort,'value',0);
 set(handles.RB_ExportSpikes_OfflineSort,'value',0);
 set(handles.CB_SpecifyName,'value',0);
 set(handles.CB_SpecifyDir,'value',1);
-PB_Export_Callback(hObject, eventdata, handles);
+ExportData(hObject, eventdata, handles);
 
 % then HP filtered data
 set(handles.LB_ProcessingType,'value',2);
 set(handles.RB_ExportRaw_dat,'value',0);
 set(handles.RB_ExportRaw_mat,'value',1);
 set(handles.RB_ExportRaw_NEV,'value',0);
-set(handles.CB_CreateParamsFile,'value',0);
+set(handles.CB_CreateSCParamsFile,'value',0);
 set(handles.RB_ExportSpikes_OnlineSort,'value',1);
 set(handles.RB_ExportSpikes_OfflineSort,'value',1);
 set(handles.CB_SpecifyName,'value',0);
 set(handles.CB_SpecifyDir,'value',1);
-PB_Export_Callback(hObject, eventdata, handles);
+ExportData(hObject, eventdata, handles);
 
 % then LFP
 set(handles.LB_ProcessingType,'value',5);
 set(handles.RB_ExportRaw_dat,'value',0);
 set(handles.RB_ExportRaw_mat,'value',1);
 set(handles.RB_ExportRaw_NEV,'value',0);
-set(handles.CB_CreateParamsFile,'value',0);
+set(handles.CB_CreateSCParamsFile,'value',0);
 set(handles.RB_ExportSpikes_OnlineSort,'value',0);
 set(handles.RB_ExportSpikes_OfflineSort,'value',0);
 set(handles.CB_SpecifyName,'value',0);
 set(handles.CB_SpecifyDir,'value',1);
-PB_Export_Callback(hObject, eventdata, handles);
+ExportData(hObject, eventdata, handles);
+
+%% --- Executes on button press in RB_ExportOnlySample.
+function RB_ExportOnlySample_Callback(hObject, eventdata, handles)
+
+%% --- Executes on button press in RB_ExportRaw_mat.
+function RB_ExportRaw_mat_Callback(hObject, eventdata, handles)
+
+%% --- Executes on button press in RB_ExportWithNoSignalCutout.
+function RB_ExportWithNoSignalCutout_Callback(hObject, eventdata, handles)
+
+%% --- Executes on button press in CB_CreateSCParamsFile.
+function CB_CreateSCParamsFile_Callback(hObject, eventdata, handles)
+
+% --- Executes on button press in CB_KSChannelMap.
+function CB_KSChannelMap_Callback(hObject, eventdata, handles)
+
+% --- Executes on button press in CB_KSConfigurationFile.
+function CB_KSConfigurationFile_Callback(hObject, eventdata, handles)
+
+% --- Executes on button press in CB_JRClustProbeFile.
+function CB_JRClustProbeFile_Callback(hObject, eventdata, handles)
+
+% --- Executes on button press in RB_ExportRaw_NEV.
+function RB_ExportRaw_NEV_Callback(hObject, eventdata, handles)
+if get(handles.RB_ExportRaw_NEV,'value')
+    set(handles.RB_ExportSpikes_OnlineSort,'value',0);
+    set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+    set(handles.RB_ExportRaw_dat,'value',0);
+    set(handles.RB_ExportRaw_mat,'value',0);
+    set(handles.CB_CreateSCParamsFile,'value',0);
+end
+
+%% --- Executes on selection change in LB_ExportSampleLocation.
+function LB_ExportSampleLocation_Callback(hObject, eventdata, handles)
+
+%% --- Executes during object creation, after setting all properties.
+function LB_ExportSampleLocation_CreateFcn(hObject, eventdata, handles)
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+% --- Executes on button press in PB_exit.
+function PB_exit_Callback(hObject, eventdata, handles)
+close(handles.DataExportFigure);
+clearvars;
+
+%% --- Executes on button press in PB_SpikePanel.
+function PB_SpikePanel_Callback(hObject, eventdata, handles)
+handles.exportDir=hObject.UserData;
+exportDirListing=dir(handles.exportDir);
+handles.spikeFile={exportDirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'_spikes.'),...
+    {exportDirListing.name},'UniformOutput',false))).name};
+if size(handles.spikeFile,2)>1
+    bestFit=sum(cell2mat(cellfun(@(name) ismember(handles.fname(1:end-4),name(1:size(handles.fname(1:end-4),2))),...
+        handles.spikeFile,'UniformOutput',false)'),2);
+    bestFit=bestFit==max(bestFit);
+    try
+        handles.spikeFile=handles.spikeFile{bestFit};
+    catch
+        handles.spikeFile=handles.spikeFile{1};
+    end
+else
+    if ~isempty(handles.spikeFile)
+        handles.spikeFile=handles.spikeFile{:};
+    end
+end
+
+hfields = fieldnames(handles);
+hdata = struct2cell(handles);
+hkeep = logical(cell2mat(cellfun(@(x) sum(~cellfun('isempty',...
+    strfind({'fname';'dname';'rec_info';'Trials';'exportDir';'spikeFile'},x))),...
+    hfields,'UniformOutput', false)));
+htransfer = cell2struct(hdata(hkeep), hfields(hkeep));
+
+SpikeVisualizationGUI(htransfer);
+
+% --- Executes on button press in PB_spike_sorting.
+function PB_spike_sorting_Callback(hObject, eventdata, handles)
+if isfield(handles,'exportType') && contains(handles.exportType,'SC')
+    if isfield(handles.userinfo,'circusEnv')
+        activation=['activate ' handles.userinfo.circusEnv ' & '];
+    else
+        activation='';
+    end
+    try
+        if contains(getenv('OS'),'Windows')
+            system([activation 'runas /user:' getenv('computername') '\' getenv('username') ...
+                ' spyking-circus-launcher & exit &']);
+        else
+            system([activation 'sudo –u ' getenv('username') ...
+                ' spyking-circus-launcher & exit &']); %UNTESTED !
+        end
+    catch
+        system('spyking-circus-launcher & exit &'); %  will only be able to edit params, not run spike sorting
+    end
+elseif isfield(handles,'exportType') && contains(handles.exportType,'ML')
+elseif isfield(handles,'exportType') && contains(handles.exportType,'KS')
+    %make "master" file and run it
+elseif isfield(handles,'exportType') && contains(handles.exportType,'JR')
+    % find parameter file
+    dirListing=dir(cd);
+    parameterFileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.prm'),...
+        {dirListing.name},'UniformOutput',false))).name;
+    jrc('spikesort',parameterFileName);
+else
+    %need user input dialog
+end
+
+% --- Executes on mouse press over axes background.
+function Axes_PreProcessedData_ButtonDownFcn(hObject, eventdata, handles)
+if contains (get(gcf,'SelectionType'),'alt')
+    figure; hold on
+    axis_name= @(x) sprintf('Chan %.0f',x);
+    preprocOption={'CAR','all'};
+    dataOneSecSample=handles.rawData(handles.keepChannels,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
+    [dataOneSecSample_preproc,handles.channelSelection]=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
+    
+    BaseShift=int32(max(abs(max(dataOneSecSample_preproc))));
+    set(gca,'ylim',[-1000,BaseShift...
+        *int32(size(handles.keepChannels,1))+BaseShift])
+    
+    for ChN=1:size(handles.keepChannels,1)
+        ShiftUp=(BaseShift*ChN)-...
+            int32(median(median(dataOneSecSample_preproc(ChN,:))));
+        plot(gca,int32(dataOneSecSample_preproc(ChN,:))+...
+            ShiftUp);
+    end
+    try
+        set(gca,'ytick',linspace(single(BaseShift),single(ShiftUp+...
+            int32(median(median(dataOneSecSample_preproc(ChN,:))))),...
+            single(size(dataOneSecSample_preproc,1))),'yticklabel',...
+            cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    catch
+        set(gca,'ytick',linspace(0,double(int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
+            cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
+    end
+    xlabel(gca,['Processing option: ' preprocOption{1}])
+    box off; axis tight
+end
+
+% --- Executes on button press in PB_SpikesExport.
+function PB_SpikesExport_Callback(hObject, eventdata, handles)
+
+% --- Executes on button press in PB_ExcerptExport.
+function PB_ExcerptExport_Callback(hObject, eventdata, handles)
+
+% --- Executes on button press in PB_SCExport.
+function PB_SCExport_Callback(hObject, eventdata, handles)
+
+set(handles.LB_ProcessingType,'value',1);
+set(handles.RB_ExportRaw_dat,'value',1);
+set(handles.RB_ExportRaw_mat,'value',0);
+set(handles.RB_ExportRaw_NEV,'value',0);
+set(handles.CB_CreateSCParamsFile,'value',1);
+set(handles.CB_KSChannelMap,'value',0);
+set(handles.CB_KSConfigurationFile,'value',0);  
+set(handles.CB_JRClustProbeFile,'value',0);
+set(handles.RB_ExportSpikes_OnlineSort,'value',0);
+set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+set(handles.CB_SpecifyName,'value',0);
+set(handles.CB_SpecifyDir,'value',1);
+handles.exportType='SC';
+ExportData(hObject, eventdata, handles);
+guidata(hObject, handles);
+
+% --- Executes on button press in PB_MatlabExport.
+function PB_MatlabExport_Callback(hObject, eventdata, handles)
+
+% set(handles.LB_ProcessingType,'value',2); Use whichever is selected
+set(handles.RB_ExportRaw_dat,'value',0);
+set(handles.RB_ExportRaw_mat,'value',1);
+set(handles.RB_ExportRaw_NEV,'value',0);
+set(handles.CB_CreateSCParamsFile,'value',0);
+set(handles.CB_KSChannelMap,'value',0);
+set(handles.CB_KSConfigurationFile,'value',0);  
+set(handles.CB_JRClustProbeFile,'value',0);
+set(handles.RB_ExportSpikes_OnlineSort,'value',0);
+set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+set(handles.CB_SpecifyName,'value',0);
+set(handles.CB_SpecifyDir,'value',1);
+handles.exportType='ML';
+ExportData(hObject, eventdata, handles);
+guidata(hObject, handles);
+
+% --- Executes on button press in PB_KiloSortExport.
+function PB_KiloSortExport_Callback(hObject, eventdata, handles)
+
+set(handles.LB_ProcessingType,'value',1);
+set(handles.RB_ExportRaw_dat,'value',1);
+set(handles.RB_ExportRaw_mat,'value',0);
+set(handles.RB_ExportRaw_NEV,'value',0);
+set(handles.CB_CreateSCParamsFile,'value',0);
+set(handles.CB_KSChannelMap,'value',1);
+set(handles.CB_KSConfigurationFile,'value',1);
+set(handles.CB_JRClustProbeFile,'value',0);
+set(handles.RB_ExportSpikes_OnlineSort,'value',0);
+set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+set(handles.CB_SpecifyName,'value',0);
+set(handles.CB_SpecifyDir,'value',1);
+handles.exportType='KS';
+ExportData(hObject, eventdata, handles);
+guidata(hObject, handles);
+
+% --- Executes on button press in PB_JRClustExport.
+function PB_JRClustExport_Callback(hObject, eventdata, handles)
+set(handles.LB_ProcessingType,'value',1);
+set(handles.RB_ExportRaw_dat,'value',1);
+set(handles.RB_ExportRaw_mat,'value',0);
+set(handles.RB_ExportRaw_NEV,'value',0);
+set(handles.CB_CreateSCParamsFile,'value',0);
+set(handles.CB_KSChannelMap,'value',0);
+set(handles.CB_KSConfigurationFile,'value',0);
+set(handles.CB_JRClustProbeFile,'value',1);
+set(handles.RB_ExportSpikes_OnlineSort,'value',0);
+set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+set(handles.CB_SpecifyName,'value',0);
+set(handles.CB_SpecifyDir,'value',1);
+handles.exportType='JR';
+ExportData(hObject, eventdata, handles);
+guidata(hObject, handles);
 
 %% --- Executes on button press in PB_Export.
-function PB_Export_Callback(hObject, eventdata, handles)
+function ExportData(hObject, eventdata, handles)
 if ~isfield(handles,'batchExport')
     handles.batchExport=0;
 end
@@ -840,7 +1066,7 @@ end
 waitbar( 0.9, wb, 'Exporting data');
 
 %% define export name
-if contains(handles.fname,'experiment') % regexp(subjectName,'^experiment','match')
+if contains(handles.fname,'experiment') % OpenEphys kwik format
     customFileName=regexp(strrep(handles.dname,'_','-'),['(?<=\' filesep ')\S+?(?=\' filesep ')'],'match');
     customFileName=customFileName(end);
 else
@@ -863,7 +1089,7 @@ if size(handles.rec_info.exportname,2)>30
 end
 
 %% create export folder (if needed), go there and save info
-exportDir=cd;
+exportDir=fullfile(cd,[handles.rec_info.exportname '_' handles.exportType]);
 if get(handles.CB_SpecifyDir,'value')==0
     try
         exportDir=regexprep(handles.userinfo.directory,['\' filesep '\w+$'],['\' filesep 'export']);
@@ -871,17 +1097,17 @@ if get(handles.CB_SpecifyDir,'value')==0
         exportDir=cd;
     end
     exportDir=uigetdir(exportDir,'Select export directory');
-    cd(exportDir)
+
 else
     if ~exist(exportDir,'dir')
         mkdir(exportDir);
     end
-    cd(exportDir);
 %     if ~isdir(handles.rec_info.exportname)
 %         mkdir(handles.rec_info.exportname); %create dir name without preprocOption
 %     end
 %     cd(handles.rec_info.exportname);
 end
+cd(exportDir)
 set(handles.PB_SpikePanel,'UserData',cd);
 
 %% [optional] adding a TTL Channel to exported data
@@ -896,11 +1122,9 @@ if get(handles.CB_AddTTLChannel,'value')
     %     if isdatetime(handles.rec_info.date)
     %         handles.rec_info.date=datestr(handles.rec_info.date,'yyyy-mm-dd');
     %     end
-    handles.rec_info.exportname=[handles.rec_info.exportname '_'...
-        num2str(size(handles.rawData,1)) 'Ch_WithTTL_'  handles.preprocOption];
+    handles.rec_info.exportname=[handles.rec_info.exportname '_WithTTL_' handles.preprocOption];
 else
-    handles.rec_info.exportname=[handles.rec_info.exportname '_'...
-        num2str(size(handles.rawData,1)) 'Ch_'  handles.preprocOption];
+    handles.rec_info.exportname=[handles.rec_info.exportname '_' handles.preprocOption];
 end
 
 %% saving info about file and export
@@ -945,6 +1169,14 @@ if get(handles.RB_ExportRaw_mat,'value')
     save([handles.rec_info.exportname '_raw'],'-struct','handles','rawData','-v7.3');
 end
 
+%% [optional] save Blackrock NEV file
+% cd(handles.dname)
+if get(handles.RB_ExportRaw_NEV,'value')
+    data = openNSxNew([handles.dname handles.fname]);
+    data.Data=flipud(handles.rawData);
+    saveNSx(data,[handles.rec_info.exportname '_CAR' handles.fname(end-3:end)])
+end
+
 %% [optional] export spikes
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
     save([handles.rec_info.exportname '_spikes'],'Spikes','-v7.3');
@@ -952,13 +1184,13 @@ if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportS
 end
 
 %% [optional] create .params file for Spyking Circus
-if get(handles.CB_CreateParamsFile,'value')==1
+if get(handles.CB_CreateSCParamsFile,'value')==1
     if ~isfield(handles.rec_info,'probeID')
         handles.rec_info.probeID ='';
     end
     userParams={'raw_binary';num2str(handles.rec_info.samplingRate);'int16';...
-        num2str(handles.rec_info.numRecChan);handles.rec_info.probeID;'3';'8';'both';'True';'10000';...
-        '0.002';'True';'1';'2, 5';'0.8';'True';'True'};
+        num2str(handles.rec_info.numRecChan);handles.rec_info.probeID;'2';'8';'both';'True';'10000';...
+        '0.002';'True';'0.98';'2, 5';'0.8';'True';'True'};
     if handles.batchExport==0
         [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,{'paramsfile';userParams});
     else
@@ -971,134 +1203,141 @@ if get(handles.CB_CreateParamsFile,'value')==1
     end
 end
 
-%% [optional] save Blackrock NSx file
-cd(handles.dname)
-if get(handles.RB_ExportRaw_NEV,'value')
-    data = openNSxNew([handles.dname handles.fname]);
-    data.Data=flipud(handles.rawData);
-    saveNSx(data,[handles.rec_info.exportname '_CAR' handles.fname(end-3:end)])
+%% [optional] create configuration file for KiloSort
+if get(handles.CB_KSConfigurationFile,'value')==1
+    useGPU=1;
+    userParams.useGPU=num2str(useGPU);
+    
+    [status,cmdout]=GenerateKSConfigFile(handles.rec_info.exportname,cd,userParams);
+    if status~=1
+        disp('problem generating the configuration file')
+    else
+        disp(cmdout)
+    end
 end
+
+%% [optional] create ChannelMap file for KiloSort
+if get(handles.CB_KSChannelMap,'value')==1
+    probeInfo.numChannels=handles.rec_info.numRecChan;
+    if isfield(handles.rec_info,'probeLayout')
+        if isfield(handles,'remapped') && handles.remapped==true
+            probeInfo.chanMap=1:probeInfo.numChannels;
+        else
+            switch handles.rec_info.sys
+                case 'OpenEphys'
+                    probeInfo.chanMap=[handles.rec_info.probeLayout.OEChannel];
+                case 'Blackrock'
+                    probeInfo.chanMap=[handles.rec_info.probeLayout.BlackrockChannel];
+            end
+        end
+        probeInfo.connected=true(probeInfo.numChannels,1);
+        probeInfo.connected(isnan([handles.rec_info.probeLayout.Shank]))=0;
+        probeInfo.kcoords=[handles.rec_info.probeLayout.Shank];
+        probeInfo.kcoords=probeInfo.kcoords(~isnan([handles.rec_info.probeLayout.Shank]));
+        probeInfo.xcoords = zeros(1,probeInfo.numChannels);
+        probeInfo.ycoords = 200 * ones(1,probeInfo.numChannels);
+        groups=unique(probeInfo.kcoords);
+        for elGroup=1:length(groups) 
+            if isnan(groups(elGroup))
+                continue;
+            end
+            groupIdx=find(probeInfo.kcoords==groups(elGroup));
+            probeInfo.xcoords(groupIdx(2:2:end))=20;
+            probeInfo.xcoords(groupIdx)=probeInfo.xcoords(groupIdx)+(0:length(groupIdx)-1);
+            probeInfo.ycoords(groupIdx)=...
+            probeInfo.ycoords(groupIdx)*(elGroup-1);
+            probeInfo.ycoords(groupIdx(round(end/2)+1:end))=...
+                probeInfo.ycoords(groupIdx(round(end/2)+1:end))+20;
+        end
+    end
+    
+    [status,cmdout]=GenerateKSChannelMap(handles.rec_info.exportname,cd,probeInfo,handles.rec_info.samplingRate);
+    if status~=1
+        disp('problem generating the configuration file')
+    else
+        disp(cmdout)
+    end
+end
+
 
 close(wb);
 disp(['took ' num2str(toc) ' seconds to export data']);
 
-%% --- Executes on button press in RB_ExportOnlySample.
-function RB_ExportOnlySample_Callback(hObject, eventdata, handles)
+%% [optional] create probe and parameter files for JRClust
+if get(handles.CB_JRClustProbeFile,'value')==1
+    
+    probeParams.numChannels=handles.rec_info.numRecChan; %number of channels
+    probeParams.pads=[15 15];% Dimensions of the recording pad (height by width in micrometers).
+    probeParams.maxSite=4; % Max number of sites to consider for merging
+    if isfield(handles.rec_info,'probeLayout')
+        if isfield(handles,'remapped') && handles.remapped==true
+            probeParams.chanMap=1:probeParams.numChannels;
+        else
+            switch handles.rec_info.sys
+                case 'OpenEphys'
+                    probeParams.chanMap=[handles.rec_info.probeLayout.OEChannel];
+                case 'Blackrock'
+                    probeParams.chanMap=[handles.rec_info.probeLayout.BlackrockChannel];
+            end
+        end
 
-%% --- Executes on button press in RB_ExportRaw_mat.
-function RB_ExportRaw_mat_Callback(hObject, eventdata, handles)
-
-%% --- Executes on button press in RB_ExportWithNoSignalCutout.
-function RB_ExportWithNoSignalCutout_Callback(hObject, eventdata, handles)
-
-%% --- Executes on button press in CB_CreateParamsFile.
-function CB_CreateParamsFile_Callback(hObject, eventdata, handles)
-
-% --- Executes on button press in RB_ExportRaw_NEV.
-function RB_ExportRaw_NEV_Callback(hObject, eventdata, handles)
-if get(handles.RB_ExportRaw_NEV,'value')
-    set(handles.RB_ExportSpikes_OnlineSort,'value',0);
-    set(handles.RB_ExportSpikes_OfflineSort,'value',0);
-    set(handles.RB_ExportRaw_dat,'value',0);
-    set(handles.RB_ExportRaw_mat,'value',0);
-    set(handles.CB_CreateParamsFile,'value',0);
-end
-
-%% --- Executes on selection change in LB_ExportSampleLocation.
-function LB_ExportSampleLocation_Callback(hObject, eventdata, handles)
-
-%% --- Executes during object creation, after setting all properties.
-function LB_ExportSampleLocation_CreateFcn(hObject, eventdata, handles)
-
-% Hint: listbox controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-% --- Executes on button press in PB_exit.
-function PB_exit_Callback(hObject, eventdata, handles)
-close(handles.DataExportFigure);
-clearvars;
-
-%% --- Executes on button press in PB_SpikePanel.
-function PB_SpikePanel_Callback(hObject, eventdata, handles)
-handles.exportDir=hObject.UserData;
-exportDirListing=dir(handles.exportDir);
-handles.spikeFile={exportDirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'_spikes.'),...
-    {exportDirListing.name},'UniformOutput',false))).name};
-if size(handles.spikeFile,2)>1
-    bestFit=sum(cell2mat(cellfun(@(name) ismember(handles.fname(1:end-4),name(1:size(handles.fname(1:end-4),2))),...
-        handles.spikeFile,'UniformOutput',false)'),2);
-    bestFit=bestFit==max(bestFit);
-    try
-        handles.spikeFile=handles.spikeFile{bestFit};
-    catch
-        handles.spikeFile=handles.spikeFile{1};
-    end
-else
-    if ~isempty(handles.spikeFile)
-        handles.spikeFile=handles.spikeFile{:};
-    end
-end
-
-hfields = fieldnames(handles);
-hdata = struct2cell(handles);
-hkeep = logical(cell2mat(cellfun(@(x) sum(~cellfun('isempty',...
-    strfind({'fname';'dname';'rec_info';'Trials';'exportDir';'spikeFile'},x))),...
-    hfields,'UniformOutput', false)));
-htransfer = cell2struct(hdata(hkeep), hfields(hkeep));
-
-SpikeVisualizationGUI(htransfer);
-
-% --- Executes on button press in PB_spike_sorting.
-function PB_spike_sorting_Callback(hObject, eventdata, handles)
-if isfield(handles.userinfo,'circusEnv')
-    activation=['activate ' handles.userinfo.circusEnv ' & '];
-else
-    activation='';
-end
-try
-    if contains(getenv('OS'),'Windows')
-        system([activation 'runas /user:' getenv('computername') '\' getenv('username') ...
-            ' spyking-circus-launcher & exit &']);
+        %geometry:
+%         Location of each site in micrometers. The first column corresponds 
+%         to the width dimension and the second column corresponds to the depth
+%         dimension (parallel to the probe shank).
+        
+        probeParams.shanks=[handles.rec_info.probeLayout.Shank];
+        probeParams.shanks=probeParams.shanks(~isnan([handles.rec_info.probeLayout.Shank]));
+        xcoords = zeros(1,probeParams.numChannels);
+        ycoords = 200 * ones(1,probeParams.numChannels);
+        groups=unique(probeParams.shanks);
+        for elGroup=1:length(groups)
+            if isnan(groups(elGroup))
+                continue;
+            end
+            groupIdx=find(probeParams.shanks==groups(elGroup));
+            xcoords(groupIdx(2:2:end))=20;
+            xcoords(groupIdx)=xcoords(groupIdx)+(0:length(groupIdx)-1);
+            ycoords(groupIdx)=...
+                ycoords(groupIdx)*(elGroup-1);
+            ycoords(groupIdx(round(end/2)+1:end))=...
+                ycoords(groupIdx(round(end/2)+1:end))+20;
+        end
+        
+        probeParams.geometry=[xcoords;ycoords]';
+        
     else
-        system([activation 'sudo –u ' getenv('username') ...
-            ' spyking-circus-launcher & exit &']); %UNTESTED !
     end
-catch
-    system('spyking-circus-launcher & exit &'); %  will only be able to edit params, not run spike sorting
+        [status,cmdout]=GenerateJRClustProbeFile(probeParams); %handles.rec_info.exportname
+        
+        if status~=1
+            disp('problem generating the probe file')
+        else
+            disp(cmdout)
+            disp('creating parameter file for JRClust')
+            % keep the GUI's directory because JRClust will revert the
+            % environment to its native state
+            exportGUIDir=mfilename('fullpath');
+            % find data and probe files
+            dirListing=dir(cd);
+            exportFileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.dat'),...
+                {dirListing.name},'UniformOutput',false))).name;
+            probeFileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.prb'),...
+                {dirListing.name},'UniformOutput',false))).name;
+            jrc('makeprm',exportFileName,probeFileName);
+            % set the GUI's path back
+            addpath(cell2mat(regexp(exportGUIDir,['.+(?=\' filesep ')'],'match')));
+        end
+
 end
 
 
-% --- Executes on mouse press over axes background.
-function Axes_PreProcessedData_ButtonDownFcn(hObject, eventdata, handles)
-if contains (get(gcf,'SelectionType'),'alt')
-    figure; hold on
-    axis_name= @(x) sprintf('Chan %.0f',x);
-    preprocOption={'CAR','all'};
-    dataOneSecSample=handles.rawData(handles.keepChannels,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
-    [dataOneSecSample_preproc,handles.channelSelection]=PreProcData(dataOneSecSample,handles.rec_info.samplingRate,preprocOption);
-    
-    BaseShift=int32(max(abs(max(dataOneSecSample_preproc))));
-    set(gca,'ylim',[-1000,BaseShift...
-        *int32(size(handles.keepChannels,1))+BaseShift])
-    
-    for ChN=1:size(handles.keepChannels,1)
-        ShiftUp=(BaseShift*ChN)-...
-            int32(median(median(dataOneSecSample_preproc(ChN,:))));
-        plot(gca,int32(dataOneSecSample_preproc(ChN,:))+...
-            ShiftUp);
-    end
-    try
-        set(gca,'ytick',linspace(single(BaseShift),single(ShiftUp+...
-            int32(median(median(dataOneSecSample_preproc(ChN,:))))),...
-            single(size(dataOneSecSample_preproc,1))),'yticklabel',...
-            cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
-    catch
-        set(gca,'ytick',linspace(0,double(int16(ChN-1)),(size(dataOneSecSample_preproc,1))),'yticklabel',...
-            cellfun(axis_name, num2cell(1:size(dataOneSecSample_preproc,1)), 'UniformOutput', false))
-    end
-    xlabel(gca,['Processing option: ' preprocOption{1}])
-    box off; axis tight
-end
+% --------------------------------------------------------------------
+function SignalExportContextMenu_Callback(hObject, eventdata, handles)
+
+% --------------------------------------------------------------------
+function helpwithexport_Callback(hObject, eventdata, handles)
+
+
+
+
