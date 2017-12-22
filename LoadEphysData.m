@@ -47,17 +47,25 @@ try
         rawInfo=h5info(fname,rawInfo.Groups.Name);
         %   chanInfo=h5info([regexp(fname,'^[a-z]+1','match','once') '.kwx']);
         %get basic info about recording
-        rec.dur=rawInfo.Groups.Datasets.Dataspace.Size;
+        % if more than one recording, ask which to load
+        if size(rawInfo.Groups,1)>1
+            recToLoad = inputdlg('Multiple recordings. Which one do you want to load?',...
+             'Recording', 1);
+            recToLoad = str2num(recToLoad{:});
+        else
+            recToLoad =1;
+        end
+        rec.dur=rawInfo.Groups(recToLoad).Datasets.Dataspace.Size;
         dirlisting = dir(dname);
         rec.date=dirlisting(cell2mat(cellfun(@(x) contains(x,fname),{dirlisting(:).name},...
             'UniformOutput',false))).date;
-        rec.samplingRate=h5readatt(fname,rawInfo.Groups.Name,'sample_rate');
+        rec.samplingRate=h5readatt(fname,rawInfo.Groups(recToLoad).Name,'sample_rate');
         rec.bitResolution=0.195; %see Intan RHD2000 Series documentation
-        rec.bitDepth=h5readatt(fname,rawInfo.Groups.Name,'bit_depth');
+        rec.bitDepth=h5readatt(fname,rawInfo.Groups(recToLoad).Name,'bit_depth');
         %   rec.numSpikeChan= size(chanInfo.Groups.Groups,1); %number of channels with recored spikes
         
         %     rec.numRecChan=rawInfo.Groups.Datasets.Dataspace.Size;
-        rec.numRecChan=rawInfo.Groups.Datasets.Dataspace.Size-3;  %number of raw data channels.
+        rec.numRecChan=rawInfo.Groups(recToLoad).Datasets.Dataspace.Size-3;  %number of raw data channels.
         % Last 3 are headstage's AUX channels (e.g accelerometer)
         %load data (only recording channels)
         tic;

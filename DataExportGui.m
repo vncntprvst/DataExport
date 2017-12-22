@@ -42,6 +42,7 @@ try
 catch
     handles.userinfo=[];
     handles.userinfo.user=getenv('username');
+    handles.userinfo.directory=cd;
 end
 %% get most recently changed data folder
 if isfield(handles,'dname') && ~isempty(handles.dname)

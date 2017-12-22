@@ -57,6 +57,7 @@ if strcmp(userParams{5},'')
     [~,scDirectory]=system('conda info -e');
     scDirectory=cell2mat(regexp(scDirectory,['(?<=' userinfo.circusEnv '                   ).+?(?=\n)'],'match'));
     if isempty(scDirectory)
+        [~,scDirectory]=system('conda info -e');
         scDirectory=cell2mat(regexp(scDirectory,'(?<=root                  \*  ).+?(?=\n)','match'));
     end
     % find probes directory
