@@ -844,7 +844,11 @@ set(wb,'Name','Exporting','Color',[0 0.4471 0.7412]);
 cd(handles.dname); %in case some other file was exported before
 
 if get(handles.CB_ExportWhichChannel,'value')==0
+    try
     handles.rawData=handles.rawData(handles.keepChannels,:);
+    catch
+        %keep as it is
+    end
 end
 handles.rec_info.exportedChan=handles.keepChannels;
 guidata(hObject, handles);
@@ -1267,7 +1271,7 @@ disp(['took ' num2str(toc) ' seconds to export data']);
 %% [optional] create probe and parameter files for JRClust
 if get(handles.CB_JRClustProbeFile,'value')==1
     
-    probeParams.numChannels=handles.rec_info.numRecChan; %number of channels
+    probeParams.numChannels=size(handles.rec_info.exportedChan,1); %handles.rec_info.numRecChan; %number of channels
     probeParams.pads=[15 15];% Dimensions of the recording pad (height by width in micrometers).
     probeParams.maxSite=4; % Max number of sites to consider for merging
     if isfield(handles.rec_info,'probeLayout')
@@ -1293,7 +1297,7 @@ if get(handles.CB_JRClustProbeFile,'value')==1
         ycoords = 200 * ones(1,probeParams.numChannels);
         groups=unique(probeParams.shanks);
         for elGroup=1:length(groups)
-            if isnan(groups(elGroup))
+            if isnan(groups(elGroup)) || groups(elGroup)==0
                 continue;
             end
             groupIdx=find(probeParams.shanks==groups(elGroup));
