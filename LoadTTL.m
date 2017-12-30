@@ -7,7 +7,8 @@ if contains(fName,'raw.kwd')
     fileListing=dir;
     fName=regexp(fName,'^\w+\d\_','match');fName=fName{1}(1:end-1);
     %making sure it exists
-    fName=fileListing(~cellfun('isempty',cellfun(@(x) contains(x,[fName '.kwe']),{fileListing.name},'UniformOutput',false))).name;
+    fName=fileListing(cellfun(@(x) contains(x,[fName '.kwe']),{fileListing.name},...
+        'UniformOutput',true)).name;
     Trials=getOE_Trials(fName);
     %        h5readatt(fName,'/recordings/0/','start_time')==0
     Trials.startClockTime=h5read(fName,'/event_types/Messages/events/time_samples');

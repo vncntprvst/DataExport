@@ -754,6 +754,22 @@ end
 % --- Executes on button press in PB_SpikesExport.
 function PB_SpikesExport_Callback(hObject, eventdata, handles)
 
+% set(handles.LB_ProcessingType,'value',2); Doesn't matter
+set(handles.RB_ExportRaw_dat,'value',0);
+set(handles.RB_ExportRaw_mat,'value',0);
+set(handles.RB_ExportRaw_NEV,'value',0);
+set(handles.CB_CreateSCParamsFile,'value',0);
+set(handles.CB_KSChannelMap,'value',0);
+set(handles.CB_KSConfigurationFile,'value',0);  
+set(handles.CB_JRClustProbeFile,'value',0);
+set(handles.RB_ExportSpikes_OnlineSort,'value',1);
+set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+set(handles.CB_SpecifyName,'value',0);
+set(handles.CB_SpecifyDir,'value',1);
+handles.exportType='OnlineSort';
+ExportData(hObject, eventdata, handles);
+guidata(hObject, handles);
+
 % --- Executes on button press in PB_ExcerptExport.
 function PB_ExcerptExport_Callback(hObject, eventdata, handles)
 
@@ -832,7 +848,7 @@ handles.exportType='JR';
 ExportData(hObject, eventdata, handles);
 guidata(hObject, handles);
 
-%% --- Executes on button press in PB_Export.
+%% --- Export data function
 function ExportData(hObject, eventdata, handles)
 if ~isfield(handles,'batchExport')
     handles.batchExport=0;
@@ -932,7 +948,15 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
             ChanInfo=h5info('experiment1.kwx');
             
             %KWD contains the continuous data for a given processor in the /recordings/#/data dataset, where # is the recording number, starting at 0
-            RawInfo=h5info('experiment1_100.raw.kwd','/recordings/0/data');
+            RawInfo=h5info('experiment1_100.raw.kwd');
+            if size(RawInfo.Groups.Groups,1)>1
+                recToExport = inputdlg('Multiple recordings. Which one do you want to load?',...
+                    'Recording', 1);
+                recToExport = str2num(recToExport{:});
+            else
+                recToExport = 1;
+            end
+            RawInfo=h5info('experiment1_100.raw.kwd',['/recordings/' num2str(recToExport-1) '/data']);
             RecDur=RawInfo.Dataspace.Size;
             
             %Keep info on ADC resolution
@@ -941,7 +965,8 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
             %Keep list of channels with > 1Hz firing rate
             %             GoodChans=cell(size(ChanInfo.Groups.Groups,1),1);
             for ChExN=1:size(ChanInfo.Groups.Groups,1)
-                if ChanInfo.Groups.Groups(ChExN).Datasets(2).Dataspace.Size/(RecDur(2)/handles.rec_info.samplingRate)>1
+                if ChanInfo.Groups.Groups(ChExN).Datasets(2).Dataspace.Size/...
+                        (RecDur(2)/handles.rec_info.samplingRate)>1
                     Spikes.Online_Sorting.GoodChans(ChExN)=regexp(ChanInfo.Groups.Groups(ChExN).Name,'\d+$','match');
                 end
             end
@@ -1088,7 +1113,7 @@ else
     handles.rec_info.exportname=customFileName{:};
 end
 
-if size(handles.rec_info.exportname,2)>30
+if size(handles.rec_info.exportname,2)>35
     handles.rec_info.exportname=inputdlg('Reduce file name''s length','File Name',1,{handles.rec_info.exportname(1:30)});
     handles.rec_info.exportname=handles.rec_info.exportname{:};
 end
@@ -1149,7 +1174,7 @@ end
 fprintf(fileID,'%21s\t\t\t %12u\r','sampling rate        ',handles.rec_info.samplingRate);
 fprintf(fileID,'%21s\t\t\t %12u\r','duration (rec. clock)',handles.rec_info.dur);
 fprintf(fileID,'%21s\t\t\t %12.4f\r','duration (s.)        ',handles.rec_info.dur/handles.rec_info.samplingRate);
-fprintf(fileID,'%21s\t\t\t %12u\r','number of rec. chans ',handles.rec_info.numRecChan);
+fprintf(fileID,'%21s\t\t\t %12u\r','number of rec. chans ',length(handles.rec_info.exportedChan));
 fprintf(fileID,['%21s\t\t %' num2str(length(num2str(handles.keepChannels'))) 's\r'],...
     'exported channels    ',num2str(handles.keepChannels'));
 fclose(fileID);
@@ -1185,7 +1210,7 @@ end
 %% [optional] export spikes
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
     save([handles.rec_info.exportname '_spikes'],'Spikes','-v7.3');
-    save([handles.rec_info.exportname '_trials'],'-struct','handles','Trials','-v7.3');
+    save([handles.rec_info.exportname '_trials'],'-struct','handles','trials','-v7.3');
 end
 
 %% [optional] create .params file for Spyking Circus
@@ -1194,7 +1219,7 @@ if get(handles.CB_CreateSCParamsFile,'value')==1
         handles.rec_info.probeID ='';
     end
     userParams={'raw_binary';num2str(handles.rec_info.samplingRate);'int16';...
-        num2str(handles.rec_info.numRecChan);handles.rec_info.probeID;'2';'8';'both';'True';'10000';...
+        num2str(length(handles.rec_info.exportedChan));handles.rec_info.probeID;'2';'8';'both';'True';'10000';...
         '0.002';'True';'0.98';'2, 5';'0.8';'True';'True'};
     if handles.batchExport==0
         [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,{'paramsfile';userParams});
@@ -1223,7 +1248,7 @@ end
 
 %% [optional] create ChannelMap file for KiloSort
 if get(handles.CB_KSChannelMap,'value')==1
-    probeInfo.numChannels=handles.rec_info.numRecChan;
+    probeInfo.numChannels=length(handles.rec_info.exportedChan);
     if isfield(handles.rec_info,'probeLayout')
         if isfield(handles,'remapped') && handles.remapped==true
             probeInfo.chanMap=1:probeInfo.numChannels;
