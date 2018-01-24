@@ -32,7 +32,7 @@ end
 
 
 %% --- Executes just before DataExportGui is made visible.
-function DataExportGui_OpeningFcn(hObject, eventdata, handles, varargin)
+function DataExportGui_OpeningFcn(hObject, ~, handles, varargin)
 % This function has no output args, see OutputFcn.
 
 % Choose default command line output for DataExportGui
@@ -44,41 +44,44 @@ catch
     handles.userinfo.user=getenv('username');
     handles.userinfo.directory=cd;
 end
-%% get most recently changed data folder
+
+%% define to data folder
 if isfield(handles,'dname') && ~isempty(handles.dname)
-    recentDataFolder=handles.dname;
-elseif ~isempty(handles.userinfo)
-    dataDir=handles.userinfo.directory;
-    dataDirListing=dir(dataDir);
-    %removing dots
-    dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
-        {dataDirListing.name},'UniformOutput',false)));
-    %removing other folders
-%     dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x)...
-%         regexp('Behav | DB | ImpedanceChecks | Video | export | example-klusters_neuroscope',x),...
+    dataFolder=handles.dname;
+elseif isfield(handles.userinfo,'directory') && ~isempty(handles.userinfo.directory)
+    dataFolder=handles.userinfo.directory;
+% elseif ~isempty(handles.userinfo) %% get most recently changed data folder
+%     dataDir=handles.userinfo.directory;
+%     dataDirListing=dir(dataDir);
+%     %removing dots
+%     dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
 %         {dataDirListing.name},'UniformOutput',false)));
-    [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
-    recentDataFolder=[dataDir filesep dataDirListing(fDateIdx(1)).name filesep];
-    %get most recent data folder in that folder if there is one
-    dataDirListing=dir(recentDataFolder);
-    %removing dots
-    dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
-        {dataDirListing.name},'UniformOutput',false)));
-    if size(dataDirListing,1)>0
-        [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
-        %     recentDataFolder=[recentDataFolder filesep dataDirListing(fDateIdx(1)).name filesep];
-        recentDataFolder=[recentDataFolder dataDirListing(fDateIdx(1)).name filesep];
-    end
+%     %removing other folders
+% %     dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x)...
+% %         regexp('Behav | DB | ImpedanceChecks | Video | export | example-klusters_neuroscope',x),...
+% %         {dataDirListing.name},'UniformOutput',false)));
+%     [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
+%     recentDataFolder=[dataDir filesep dataDirListing(fDateIdx(1)).name filesep];
+%     %get most recent data folder in that folder if there is one
+%     dataDirListing=dir(recentDataFolder);
+%     %removing dots
+%     dataDirListing=dataDirListing(cellfun('isempty',cellfun(@(x) strfind(x,'.'),...
+%         {dataDirListing.name},'UniformOutput',false)));
+%     if size(dataDirListing,1)>0
+%         [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
+%         %     recentDataFolder=[recentDataFolder filesep dataDirListing(fDateIdx(1)).name filesep];
+%         dataFolder=[recentDataFolder dataDirListing(fDateIdx(1)).name filesep];
+%     end
 else
-    recentDataFolder=cd;
+    dataFolder=cd;
 end
 
 %% Get file path
 [handles.fname,handles.dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
-    '*.*','All Files' },'Select data file to export',recentDataFolder);
+    '*.*','All Files' },'Select data file to export',dataFolder);
 if handles.fname==0
     handles.fname='';
-    handles.dname=recentDataFolder;
+    handles.dname=dataFolder;
 end
 handles=LoadData(handles);
 
@@ -700,7 +703,7 @@ if isfield(handles,'exportType') && contains(handles.exportType,'SC')
             system([activation 'runas /user:' getenv('computername') '\' getenv('username') ...
                 ' spyking-circus-launcher & exit &']);
         else
-            system([activation 'sudo –u ' getenv('username') ...
+            system([activation 'sudo ï¿½u ' getenv('username') ...
                 ' spyking-circus-launcher & exit &']); %UNTESTED !
         end
     catch
@@ -1113,8 +1116,8 @@ else
     handles.rec_info.exportname=customFileName{:};
 end
 
-if size(handles.rec_info.exportname,2)>35
-    handles.rec_info.exportname=inputdlg('Reduce file name''s length','File Name',1,{handles.rec_info.exportname(1:30)});
+if size(handles.rec_info.exportname,2)>50
+    handles.rec_info.exportname=inputdlg('Reduce file name''s length','File Name',1,{handles.rec_info.exportname(1:50)});
     handles.rec_info.exportname=handles.rec_info.exportname{:};
 end
 
