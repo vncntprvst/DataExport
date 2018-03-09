@@ -127,31 +127,31 @@ else
     
     %% Plot raw data excerpt
     dataOneSecSample=handles.rawData(:,round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate:round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate);
-    axes(handles.Axes_RawData); hold on;
-    cla(handles.Axes_RawData);
-    set(handles.Axes_RawData,'Visible','on');
+    axes(handles.Axes_traces); hold on;
+    cla(handles.Axes_traces);
+    set(handles.Axes_traces,'Visible','on');
     BaseShift=int32(max(abs(max(dataOneSecSample))));
     %     subplot(1,2,1);
     for ChN=1:size(handles.rawData,1)
         ShiftUp=(BaseShift*ChN)-...
             int32(median(median(dataOneSecSample(ChN,:))));
-        plot(handles.Axes_RawData,int32(dataOneSecSample(ChN,:))+...
+        plot(handles.Axes_traces,int32(dataOneSecSample(ChN,:))+...
             ShiftUp);
     end
-    set(handles.Axes_RawData,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
+    set(handles.Axes_traces,'xtick',linspace(0,handles.rec_info.samplingRate*2,4),...
         'xticklabel',round(linspace(round((round(size(handles.rawData,2)/2)-handles.rec_info.samplingRate)/handles.rec_info.samplingRate),...
         round((round(size(handles.rawData,2)/2)+handles.rec_info.samplingRate)/handles.rec_info.samplingRate),4)),'TickDir','out');
-    set(handles.Axes_RawData,'ytick',linspace(single(BaseShift),single(ShiftUp+...
+    set(handles.Axes_traces,'ytick',linspace(single(BaseShift),single(ShiftUp+...
         int32(median(median(dataOneSecSample(ChN,:))))),...
         single(size(dataOneSecSample,1))),'yticklabel',...
         cellfun(axis_name, num2cell(1:size(dataOneSecSample,1)), 'UniformOutput', false))
     %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
     axis('tight');box off;
-    set(handles.Axes_RawData,'ylim',[-1000,BaseShift...
+    set(handles.Axes_traces,'ylim',[-1000,BaseShift...
         *int32(size(handles.keepChannels,1))+BaseShift]);
-    xlabel(handles.Axes_RawData,'2 sec mid-recording')
-    ylabel(handles.Axes_RawData,'Raw signal')
-    set(handles.Axes_RawData,'Color','white','FontSize',12,'FontName','calibri');
+    xlabel(handles.Axes_traces,'2 sec mid-recording')
+    ylabel(handles.Axes_traces,'Raw signal')
+    set(handles.Axes_traces,'Color','white','FontSize',12,'FontName','calibri');
     
     %% Plot pre-processed excerpt
     preprocMenu=get(handles.LB_ProcessingType,'string');
@@ -1199,7 +1199,7 @@ end
 
 %% [optional] export data into a .mat file
 if get(handles.RB_ExportRaw_mat,'value')
-    save([handles.rec_info.exportname '_raw'],'-struct','handles','rawData','-v7.3');
+    save([handles.rec_info.exportname '_traces'],'-struct','handles','rawData','-v7.3');
 end
 
 %% [optional] save Blackrock NEV file

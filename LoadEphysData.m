@@ -105,20 +105,20 @@ try
         %% Blackrock raw data
         tic;
 %         infoPackets = openCCF([fname(1:end-3) 'ccf'])
-        memoryInfo=memory;
-        fileSize=dir(fname);fileSize=fileSize.bytes/10^9;
-        if fileSize>memoryInfo.MemAvailableAllArrays/10^9-2 % too big, read only part of it
-            rec.partialRead=true;
-            data = openLongNSx([cd filesep], fname);
-%             % alternatively read only part of the file
-%             fileHeader=openNSx([dname fname],'noread');
-%             rec.fileSamples=fileHeader.MetaTags.DataPoints;
-%             % max(fileSamples)/fileHeader.MetaTags.SamplingFreq/3600
-%             splitVector=round(linspace(1,max(rec.fileSamples),round(fileSize/(5*10^3))));
-%             data=openNSx([dname fname],['t:1:' num2str(splitVector(2))] , 'sample');
-        else
+%         memoryInfo=memory;
+%         fileSize=dir(fname);fileSize=fileSize.bytes/10^9;
+%         if fileSize>memoryInfo.MemAvailableAllArrays/10^9-2 % too big, read only part of it
+%             rec.partialRead=true;
+%             data = openLongNSx([cd filesep], fname);
+% %             % alternatively read only part of the file
+% %             fileHeader=openNSx([dname fname],'noread');
+% %             rec.fileSamples=fileHeader.MetaTags.DataPoints;
+% %             % max(fileSamples)/fileHeader.MetaTags.SamplingFreq/3600
+% %             splitVector=round(linspace(1,max(rec.fileSamples),round(fileSize/(5*10^3))));
+% %             data=openNSx([dname fname],['t:1:' num2str(splitVector(2))] , 'sample');
+%         else
             data = openNSx([cd filesep fname]);
-        end
+%         end
         if iscell(data.Data) && size(data.Data,2)>1 %gets splitted into two cells sometimes for no reason
             data.Data=[data.Data{:}]; %remove extra data.Data=data.Data(:,1:63068290);
                                       %data.MetaTags.DataPoints=63068290;
@@ -132,7 +132,7 @@ try
         %get basic info about recording
         rec.dur=data.MetaTags.DataPoints;
         rec.samplingRate=data.MetaTags.SamplingFreq;
-        rec.bitResolution=0.25; % ±8 mV @ 16-Bit => 16000/2^16 = 0.2441 ?V 
+        rec.bitResolution=0.25; % ï¿½8 mV @ 16-Bit => 16000/2^16 = 0.2441 ?V 
         rec.chanID=data.MetaTags.ChannelID;
         rec.numRecChan=data.MetaTags.ChannelCount;  %number of raw data channels.
         rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match'))...
