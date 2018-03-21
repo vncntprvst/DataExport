@@ -11,14 +11,13 @@ Trials.samplingRate=samplingRate;
 TTLseq=diff(Trials.TTLtimes)./(Trials.samplingRate/1000); % convert to ms
 % [~,occurence,~]=unique(TTLseq);
 
-if sum(TTLseq==mode((TTLseq)))/length(TTLseq)*100>50 % stimulations
+if sum(TTLseq==mode(TTLseq))/length(TTLseq)*100>50 % stimulations
     % in Stimulation recordings, there are only Pulse onsets, i.e., no
     % double TTL to start, and no TTL to end
     Trials.start=Trials.TTLtimes;
     Trials.end=Trials.start+TTLdur;
     Trials.interval=Trials.start(2:end)-Trials.end(1:end-1);
-elseif  max(unique(TTLseq))/TTLtimes>0.9 % video sync at beginning and end of recording 
-    
+elseif mode(TTLseq)>=500 && numel(TTLseq)<20 %  max(unique(TTLseq))/TTLtimes>0.9 % video sync at beginning and end of recording 
     Trials.start=Trials.TTLtimes;
     Trials.end=Trials.start+TTLdur;
     Trials.interval=Trials.start(2:end)-Trials.end(1:end-1);

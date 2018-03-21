@@ -67,8 +67,12 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
             dataDirListing=dataDirListing(~cellfun('isempty',cellfun(@(x)...
                 strcmp(x(1:end-4),fName(1:end-4)) & strfind(x,'.ns2'),... %assuming TTL recorded at 1kHz
                 {dataDirListing.name},'UniformOutput',false)));
-            fName=dataDirListing.name;
-            analogChannel = openNSx([cd filesep fName]);
+            if size({dataDirListing.name},2)==1
+                syncfName=dataDirListing.name;
+            else
+                syncfName=strrep(fName,'ns6','ns2');
+            end
+            analogChannel = openNSx([cd filesep syncfName]);
         end
         Trials.continuous=analogChannel.Data(cellfun(@(x) contains(x,'ainp1'),...
             {analogChannel.ElectrodesInfo.Label}),:); %send sync TTL to AINP1

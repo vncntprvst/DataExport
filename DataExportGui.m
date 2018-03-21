@@ -1298,69 +1298,80 @@ disp(['took ' num2str(toc) ' seconds to export data']);
 
 %% [optional] create probe and parameter files for JRClust
 if get(handles.CB_JRClustProbeFile,'value')==1
-    
-    probeParams.numChannels=size(handles.rec_info.exportedChan,1); %handles.rec_info.numRecChan; %number of channels
-    probeParams.pads=[15 15];% Dimensions of the recording pad (height by width in micrometers).
-    probeParams.maxSite=4; % Max number of sites to consider for merging
-    if isfield(handles.rec_info,'probeLayout')
-        if isfield(handles,'remapped') && handles.remapped==true
-            probeParams.chanMap=1:probeParams.numChannels;
-        else
-            switch handles.rec_info.sys
-                case 'OpenEphys'
-                    probeParams.chanMap=[handles.rec_info.probeLayout.OEChannel];
-                case 'Blackrock'
-                    probeParams.chanMap=[handles.rec_info.probeLayout.BlackrockChannel];
-            end
-        end
-
-        %geometry:
-%         Location of each site in micrometers. The first column corresponds 
-%         to the width dimension and the second column corresponds to the depth
-%         dimension (parallel to the probe shank).
+    if contains(handles.rec_info.probeID,'CN32ChProbe')
+        probeFile='cnt_32_500.prb';
+        copyfile(['C:\Code\EphysDataProc\DataExport\probemaps\' probeFile],...
+            cd);
+        % Specify the site numbers to exclude
+        ref_sites = handles.rec_info.chanID(~(ismember(handles.rec_info.chanID,...
+            handles.rec_info.exportedChan)))'; 
+        % change manually for now
         
-        probeParams.shanks=[handles.rec_info.probeLayout.Shank];
-        probeParams.shanks=probeParams.shanks(~isnan([handles.rec_info.probeLayout.Shank]));
-        xcoords = zeros(1,probeParams.numChannels);
-        ycoords = 200 * ones(1,probeParams.numChannels);
-        groups=unique(probeParams.shanks);
-        for elGroup=1:length(groups)
-            if isnan(groups(elGroup)) || groups(elGroup)==0
-                continue;
-            end
-            groupIdx=find(probeParams.shanks==groups(elGroup));
-            xcoords(groupIdx(2:2:end))=20;
-            xcoords(groupIdx)=xcoords(groupIdx)+(0:length(groupIdx)-1);
-            ycoords(groupIdx)=...
-                ycoords(groupIdx)*(elGroup-1);
-            ycoords(groupIdx(round(end/2)+1:end))=...
-                ycoords(groupIdx(round(end/2)+1:end))+20;
-        end
-        
-        probeParams.geometry=[xcoords;ycoords]';
-        
+         status=1;
+         cmdout='copied existing probe file';
     else
-    end
-        [status,cmdout]=GenerateJRClustProbeFile(probeParams); %handles.rec_info.exportname
-        
-        if status~=1
-            disp('problem generating the probe file')
+        probeParams.numChannels=size(handles.rec_info.exportedChan,1); %handles.rec_info.numRecChan; %number of channels
+        probeParams.pads=[15 15];% Dimensions of the recording pad (height by width in micrometers).
+        probeParams.maxSite=4; % Max number of sites to consider for merging
+        if isfield(handles.rec_info,'probeLayout')
+            if isfield(handles,'remapped') && handles.remapped==true
+                probeParams.chanMap=1:probeParams.numChannels;
+            else
+                switch handles.rec_info.sys
+                    case 'OpenEphys'
+                        probeParams.chanMap=[handles.rec_info.probeLayout.OEChannel];
+                    case 'Blackrock'
+                        probeParams.chanMap=[handles.rec_info.probeLayout.BlackrockChannel];
+                end
+            end
+            
+            %geometry:
+            %         Location of each site in micrometers. The first column corresponds
+            %         to the width dimension and the second column corresponds to the depth
+            %         dimension (parallel to the probe shank).
+            
+            probeParams.shanks=[handles.rec_info.probeLayout.Shank];
+            probeParams.shanks=probeParams.shanks(~isnan([handles.rec_info.probeLayout.Shank]));
+            xcoords = zeros(1,probeParams.numChannels);
+            ycoords = 200 * ones(1,probeParams.numChannels);
+            groups=unique(probeParams.shanks);
+            for elGroup=1:length(groups)
+                if isnan(groups(elGroup)) || groups(elGroup)==0
+                    continue;
+                end
+                groupIdx=find(probeParams.shanks==groups(elGroup));
+                xcoords(groupIdx(2:2:end))=20;
+                xcoords(groupIdx)=xcoords(groupIdx)+(0:length(groupIdx)-1);
+                ycoords(groupIdx)=...
+                    ycoords(groupIdx)*(elGroup-1);
+                ycoords(groupIdx(round(end/2)+1:end))=...
+                    ycoords(groupIdx(round(end/2)+1:end))+20;
+            end
+            
+            probeParams.geometry=[xcoords;ycoords]';
+            
         else
-            disp(cmdout)
-            disp('creating parameter file for JRClust')
-            % keep the GUI's directory because JRClust will revert the
-            % environment to its native state
-            exportGUIDir=mfilename('fullpath');
-            % find data and probe files
-            dirListing=dir(cd);
-            exportFileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.dat'),...
-                {dirListing.name},'UniformOutput',false))).name;
-            probeFileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.prb'),...
-                {dirListing.name},'UniformOutput',false))).name;
-            jrc('makeprm',exportFileName,probeFileName);
-            % set the GUI's path back
-            addpath(cell2mat(regexp(exportGUIDir,['.+(?=\' filesep ')'],'match')));
         end
+        [status,cmdout]=GenerateJRClustProbeFile(probeParams); %handles.rec_info.exportname
+    end
+    if status~=1
+        disp('problem generating the probe file')
+    else
+        disp(cmdout)
+        disp('creating parameter file for JRClust')
+        % keep the GUI's directory because JRClust will revert the
+        % environment to its native state
+        exportGUIDir=mfilename('fullpath');
+        % find data and probe files
+        dirListing=dir(cd);
+        exportFileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.dat'),...
+            {dirListing.name},'UniformOutput',false))).name;
+        probeFileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'.prb'),...
+            {dirListing.name},'UniformOutput',false))).name;
+        jrc('makeprm',exportFileName,probeFileName);
+        % set the GUI's path back
+        addpath(cell2mat(regexp(exportGUIDir,['.+(?=\' filesep ')'],'match')));
+    end
 
 end
 
