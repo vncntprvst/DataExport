@@ -1331,7 +1331,8 @@ if get(handles.CB_JRClustProbeFile,'value')==1
             %         dimension (parallel to the probe shank).
             
             probeParams.shanks=[handles.rec_info.probeLayout.Shank];
-            probeParams.shanks=probeParams.shanks(~isnan([handles.rec_info.probeLayout.Shank]));
+            probeParams.shanks=probeParams.shanks(~cellfun('isempty',{handles.rec_info.probeLayout.Electrode}) &...
+                ~isnan([handles.rec_info.probeLayout.Shank]));
             xcoords = zeros(1,probeParams.numChannels);
             ycoords = 200 * ones(1,probeParams.numChannels);
             groups=unique(probeParams.shanks);
