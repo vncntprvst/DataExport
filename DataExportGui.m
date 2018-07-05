@@ -9,7 +9,7 @@ function varargout = DataExportGui(varargin)
 %
 % When opening, will use most recent folder in user's data directory as root
 % Written by Vincent Prevosto, 2016/2017
-% Last Modified by GUIDE v2.5 16-Nov-2017 12:21:32
+% Last Modified by GUIDE v2.5 14-Apr-2018 16:38:52
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -851,6 +851,24 @@ handles.exportType='JR';
 ExportData(hObject, eventdata, handles);
 guidata(hObject, handles);
 
+% --- Executes on button press in PB_MountainSortExport.
+function PB_MountainSortExport_Callback(hObject, eventdata, handles)
+set(handles.LB_ProcessingType,'value',1);
+set(handles.RB_ExportRaw_dat,'value',0);
+set(handles.RB_ExportRaw_mat,'value',0);
+set(handles.RB_ExportRaw_NEV,'value',0);
+set(handles.CB_CreateSCParamsFile,'value',0);
+set(handles.CB_KSChannelMap,'value',0);
+set(handles.CB_KSConfigurationFile,'value',0);
+set(handles.CB_JRClustProbeFile,'value',0);
+set(handles.RB_ExportSpikes_OnlineSort,'value',0);
+set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+set(handles.CB_SpecifyName,'value',0);
+set(handles.CB_SpecifyDir,'value',1);
+handles.exportType='MS';
+ExportData(hObject, eventdata, handles);
+guidata(hObject, handles);
+
 %% --- Export data function
 function ExportData(hObject, eventdata, handles)
 if ~isfield(handles,'batchExport')
@@ -1210,6 +1228,11 @@ if get(handles.RB_ExportRaw_NEV,'value')
     saveNSx(data,[handles.rec_info.exportname '_CAR' handles.fname(end-3:end)])
 end
 
+%% [optional] convert data to mda format for MountainSort
+if strcmp(handles.exportType,'MS')
+    writemda16i(handles.rawData,[handles.rec_info.exportname '.mda']);
+end
+
 %% [optional] export spikes
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
     save([handles.rec_info.exportname '_spikes'],'Spikes','-v7.3');
@@ -1292,10 +1315,6 @@ if get(handles.CB_KSChannelMap,'value')==1
     end
 end
 
-
-close(wb);
-disp(['took ' num2str(toc) ' seconds to export data']);
-
 %% [optional] create probe and parameter files for JRClust
 if get(handles.CB_JRClustProbeFile,'value')==1
     if contains(handles.rec_info.probeID,'CN32ChProbe')
@@ -1376,13 +1395,15 @@ if get(handles.CB_JRClustProbeFile,'value')==1
 
 end
 
+close(wb);
+disp(['took ' num2str(toc) ' seconds to export data']);
+
+
+    
+
 
 % --------------------------------------------------------------------
 function SignalExportContextMenu_Callback(hObject, eventdata, handles)
 
 % --------------------------------------------------------------------
 function helpwithexport_Callback(hObject, eventdata, handles)
-
-
-
-
