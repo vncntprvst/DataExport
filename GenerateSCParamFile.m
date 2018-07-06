@@ -43,26 +43,33 @@ end
 
 % load implant list and find probe file name
 if strcmp(userParams{5},'')
-    subjectName=regexp(exportFile,'^\S+?(?=\W)','match');
-    if isempty(subjectName) % different naming convention
-        subjectName=regexp(strrep(exportFile,'_','-'),'^\w+(?=-)','match');
-    end
     load([userinfo.probemap filesep 'ImplantList.mat']);
+    subjectIndex=cellfun(@(x) sum(strfind(exportFile,x)),{implantList.Mouse}, 'UniformOutput',true);
+    subjectName=implantList(subjectIndex==max(subjectIndex)).Mouse;
+    if isempty(subjectName)  % different naming convention
+        subjectName=regexp(strrep(exportFile,'_','-'),'^\w+?(?=-)','match');
+        if isempty(subjectName)
+            subjectName=regexp(exportFile,'^\S+?(?=\W)','match');
+        end
+    end
     try 
         probeID=implantList(contains(strrep({implantList.Mouse},'-',''),subjectName,'IgnoreCase',true)).Probe;
     catch %'default'
         probeID=implantList(contains(strrep({implantList.Mouse},'-',''),'default','IgnoreCase',true)).Probe;
     end
 %     probeFile=['C:\\Users\\' userinfo.user '\\spyking-circus\\probes\\' probeID '.prb'];
-    [~,scDirectory]=system('conda info -e');
-    scDirectory=cell2mat(regexp(scDirectory,['(?<=' userinfo.circusEnv '                   ).+?(?=\n)'],'match'));
+    [~,scDirectory]=system('conda info -e'); % if that returns '/bin/bash: conda: command not found', need to be added to path, such as setenv('PATH', [PATH ':/home/wanglab/Programs/anaconda3/bin']);
+    scDirectory=strtrim(cell2mat(regexp(scDirectory,...
+        ['(?<=' userinfo.circusEnv '\s+)\S+?(?=\n)'],'match')))
     if isempty(scDirectory)
         [~,scDirectory]=system('conda info -e');
         scDirectory=cell2mat(regexp(scDirectory,'(?<=root                  \*  ).+?(?=\n)','match'));
     end
     % find probes directory
     dSep=[filesep filesep];
-    if exist([scDirectory filesep 'data' filesep 'spyking-circus' filesep 'probes'],'dir') 
+    if exist ([userinfo.probemap filesep probeID '.prb'],'file')
+        probeFile=[userinfo.probemap filesep probeID '.prb'];
+    elseif exist([scDirectory filesep 'data' filesep 'spyking-circus' filesep 'probes'],'dir')
         probeFile=[regexprep(scDirectory,['\' filesep],['\' dSep]) dSep 'data' dSep 'spyking-circus' dSep 'probes' dSep probeID '.prb'];
     elseif exist([userinfo.circusHomeDir filesep 'probes'],'dir')
         probeFile=[regexprep(userinfo.circusHomeDir,['\' filesep],['\' dSep]) dSep 'probes' dSep probeID '.prb'];
@@ -85,11 +92,15 @@ if exist([exportFile '.params'],'file')==2
 end
 
 % generate template params file
-[status,cmdout] = system(['cd ' userinfo.envScriptDir ' &'...
-    'activate ' userinfo.circusEnv ' &'...
-    'spyking-circus ' ...
-    exportDir filesep exportFile '.dat <' userinfo.ypipe ' &'...
-     'exit &']); %  final ' &' makes command run in background outside Matlab
+% if contains(computer('arch'),'win')
+%     condaActivation='activate '; 
+% else
+%     condaActivation='source activate '; 
+% end
+
+[status,cmdout] = system(['echo y | '... %'cd ' userinfo.envScriptDir ' &' condaActivation userinfo.circusEnv ' &'...
+    'spyking-circus ' exportDir filesep exportFile '.dat &'...
+    'exit &']); %  final ' &' makes command run in background outside Matlab
 
 if status~=0
     return
@@ -102,6 +113,10 @@ while ~exist([exportFile '.params'],'file')
     if timeElapsed-accuDelay>1
        accuDelay=timeElapsed;
         fprintf('%s ', '*'); 
+    end
+    if timeElapsed>10
+        fprintf('\nFailed to generate parameter file\n'); 
+        break
     end
 end     
     

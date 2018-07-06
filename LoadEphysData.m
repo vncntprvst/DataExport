@@ -132,9 +132,16 @@ try
         %get basic info about recording
         rec.dur=data.MetaTags.DataPoints;
         rec.samplingRate=data.MetaTags.SamplingFreq;
-        rec.bitResolution=0.25; % �8 mV @ 16-Bit => 16000/2^16 = 0.2441 ?V 
+        rec.bitResolution=0.25; % �8 mV @ 16-Bit => 16000/2^16 = 0.2441 uV 
         rec.chanID=data.MetaTags.ChannelID;
-        rec.numRecChan=data.MetaTags.ChannelCount;  %number of raw data channels.
+        if ~sum(cellfun(@(x) contains(x,'ainp1'),{data.ElectrodesInfo.Label}))
+            % maybe no Analog channels were recorded but caution: they may be
+            % labeled as any digital channel. Check Connector bancks
+            analogChannels=cellfun(@(x) contains(x,'D'),{data.ElectrodesInfo.ConnectorBank});
+            rec.chanID=rec.chanID(~analogChannels);
+            data.Data=data.Data(~analogChannels,:);
+        end
+        rec.numRecChan=size(data.Data,1); %data.MetaTags.ChannelCount;  %number of raw data channels.
         rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match'))...
             '_' cell2mat(regexp(data.MetaTags.DateTime,'(?<= )\d.+','match'))];
         rec.date=regexprep(rec.date,'\W','_');

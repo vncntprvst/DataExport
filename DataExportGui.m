@@ -1179,6 +1179,42 @@ else
 end
 
 %% saving info about file and export
+% add probe info if not present and available
+if ~isfield(handles.rec_info,'probeID') &...
+        exist([handles.userinfo.probemap filesep 'ImplantList.mat'],'file')
+    try
+        load([handles.userinfo.probemap filesep 'ImplantList.mat'],'implantList');
+        % setting subject name, expecting Letter/Digit combination (e.g. PrV50)
+        subjectName=regexp(strrep(handles.fname,'_','-'),'^\w+\d+(\w)?','match');
+        if isempty(subjectName) || contains(subjectName,'experiment') % regexp(subjectName,'^experiment','match')
+            subjectName=regexp(strrep(handles.dname,'_','-'),['(?<=\' filesep ')\w+\d+\w(?=\W)'],'match');
+        end
+        if size(subjectName,2)>1 %loading from dedicated subject directory
+            subjectName=subjectName(1);
+        end
+        if isempty(subjectName)
+            subjectName=handles.fname;
+        end
+        
+        subjectName=subjectName{:};
+        
+        % find Probe ID
+        try
+            probeID=implantList(contains(strrep({implantList.Mouse},'-',''),...
+                subjectName,'IgnoreCase',true)).Probe;
+        catch
+            probeID=['default_' num2str(handles.rec_info.numRecChan) 'Channels'];
+        end
+        
+        load([handles.userinfo.probemap filesep probeID '.mat'],probeID);
+        wsVars=who;
+        handles.rec_info.probeLayout=eval(wsVars{contains(wsVars,'Probe')});
+        handles.rec_info.subjectName=subjectName;
+        handles.rec_info.probeID=probeID;
+    catch
+    end
+end
+
 save([handles.rec_info.exportname '_info'],'-struct','handles','rec_info','-v7.3');
 fileID = fopen([handles.rec_info.exportname '.txt'],'w');
 if ischar(handles.rec_info.date)

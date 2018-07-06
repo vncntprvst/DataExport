@@ -74,10 +74,14 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
             end
             analogChannel = openNSx([cd filesep syncfName]);
         end
-        Trials.continuous=analogChannel.Data(cellfun(@(x) contains(x,'ainp1'),...
-            {analogChannel.ElectrodesInfo.Label}),:); %send sync TTL to AINP1
+        if sum(cellfun(@(x) contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label}))
+            analogChannels=cellfun(@(x) contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label})
+        elseif sum(cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank}))
+            analogChannels=cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank});
+        end
+        Trials.continuous=analogChannel.Data(analogChannels,:); %send sync TTL to AINP1
         if ~isempty(Trials.continuous) && ~iscell(Trials.continuous)
-            [TTLtimes,TTLdur]=ContinuousToTTL(Trials.continuous);
+            [TTLtimes,TTLdur]=ContinuousToTTL(Trials.continuous,'keepfirstonly');
             Trials=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
         end
     end

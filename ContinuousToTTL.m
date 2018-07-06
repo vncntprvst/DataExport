@@ -1,13 +1,25 @@
-function [TTLtimes,TTLdur]=ContinuousToTTL(continuousTrace)
+function [TTLtimes,TTLdur]=ContinuousToTTL(continuousTrace,option)
 
-TTLs=logical(continuousTrace>rms(continuousTrace)*5);
+% figure; hold on 
+% plot(continuousTrace(1,:))
+% plot(continuousTrace(2,:))
+[TTLtimes,TTLdur]=deal(cell(size(continuousTrace,1),1));
+for traceNum=1:size(continuousTrace,1)
+TTLs=logical(continuousTrace(traceNum,:)>rms(continuousTrace(traceNum,:))*5);
 TTLsProperties=regionprops(TTLs,'Area','PixelIdxList');
 
 %remove artifacts
 pulseDur=mode([TTLsProperties.Area]);
 TTLsProperties=TTLsProperties([TTLsProperties.Area]>=max([(pulseDur-1) 2]) & [TTLsProperties.Area]<=(pulseDur+1));
-TTLtimes=cellfun(@(timeIndex) timeIndex(1), {TTLsProperties.PixelIdxList});
-TTLdur=[TTLsProperties.Area];
+TTLtimes{traceNum}=cellfun(@(timeIndex) timeIndex(1), {TTLsProperties.PixelIdxList});
+TTLdur{traceNum}=[TTLsProperties.Area];
+% plot(TTLtimes{traceNum},ones(length(TTLtimes{traceNum}))*rms(continuousTrace(traceNum,:))*5,'d')
+end
+
+if strcmp(option,'keepfirstonly')
+    TTLtimes=TTLtimes{1};
+    TTLdur=TTLdur{1};
+end
 
 % diffTTL=diff(TTLtimes);
 % if mode(diff(TTLtimes))> 20 %likely stimulation trial

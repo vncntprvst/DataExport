@@ -95,17 +95,19 @@ end
 probeInfo.radius=100;
 
 %% save file
+cd([userinfo.probemap filesep])
 fileID = fopen([probeID '.prb'],'w');
-fprintf(fileID,'total_nb_channels =%4u\r',probeInfo.numChannels  );
-fprintf(fileID,'radius            =%3u\r\r',probeInfo.radius);
+fprintf(fileID,'total_nb_channels = %d\r',probeInfo.numChannels  );
+fprintf(fileID,'radius            = %d\r\r',probeInfo.radius);
 fprintf(fileID,'channel_groups = {\r');
 fprintf(fileID,'\t1: {\r');
-fprintf(fileID,'\t\t''channels'': [%s],\r',regexprep(strtrim(sprintf('%d, ',...
-    sort(probeInfo.chanMap))),',$',''));
+% fprintf(fileID,'\t\t''channels'': [%s],\r',regexprep(strtrim(sprintf('%d, ',...
+%     sort(probeInfo.chanMap))),',$',''));
+fprintf(fileID,'\t\t''channels'': list(range(%d)),\r',probeInfo.numChannels);
 fprintf(fileID,'\t\t''geometry'': {\r');
-fprintf(fileID,'\t\t\t%s},\r',strtrim(sprintf('%d: [%d, %d], ',...
-    reshape([probeInfo.chanMap;probeInfo.xcoords;probeInfo.ycoords],...
-    [length(probeInfo.chanMap)*3,1]))));
+fprintf(fileID,'\t\t\t%s\r',strtrim(sprintf('%d: [%d, %d], ',...
+    reshape([(1:length(probeInfo.chanMap))-1;probeInfo.xcoords;probeInfo.ycoords],...
+    [length(probeInfo.chanMap)*3,1])))); % -1 because of 0 indexing
 fprintf(fileID,'\t\t},\r');
 fprintf(fileID,'\t\t''graph'' : []\r');
 fprintf(fileID,'\t}\r}');
