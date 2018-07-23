@@ -4,7 +4,7 @@ userInfo=SetUserDir;
 cd(userInfo.syncdir);
 cd('recInfo');
 
-recLoc='dentate';
+recLoc='dentate'; %'topCortex'; %'dentate';
 
 %% Cicerone site colors
 % markerLoc={'striatum';...%	tan
@@ -40,8 +40,17 @@ markerLoc={...
 'snc'};%	seashell
 
 %% import recInfo.xls file as table and convert to structure
-recInfo=loadxls('recInfo.xls','struct');
+recInfo=loadxls(['recInfo_' recLoc '.xls'],'struct');
 subjects=unique({recInfo.Monkey});
+
+%% for converting coordinates to same referential, load reference coordinates
+filename = 'C:\MonkeyCicerone\cDN coordinates.txt';
+delimiter = '\t'; startRow = 2; formatSpec = '%s%f%f%f%[^\n\r]';
+fileID = fopen(filename,'r');
+dataArray = textscan(fileID, formatSpec, 'Delimiter', delimiter, 'HeaderLines' ,startRow-1, 'ReturnOnError', false);
+fclose(fileID);
+cDNcoordinates = table(dataArray{1:end-1}, 'VariableNames', {'Subject','ML','AP','Depth'});
+clearvars filename delimiter startRow formatSpec fileID dataArray;
 
 %% Check ML/AP columns
 for recInfoEntry=1:size(recInfo,1)
@@ -99,7 +108,6 @@ for recInfoEntry=1:size(recInfo,1)
     
 end
 
-
 %% subject-specific export files
 for subjectID=1:length(subjects)
     
@@ -143,21 +151,44 @@ for subjectID=1:length(subjects)
     subjectRecCoords=[[subjectRecInfo.MLCoordinates]',[subjectRecInfo.APCoordinates]'];
     [~,uniqueMLidx]=unique(subjectRecCoords,'rows');
     uniqueTracks=subjectRecCoords(uniqueMLidx,:);
-    
-    % add track and electrode numbering (and color, optional)
+
+    % convert depth
+    convDepths=mat2cell(-[recInfo(subjectIdxNum).Depth]'/1000,ones(numel(subjectIdxNum),1));
+    if strcmp(subjects{subjectID},'Hilda')
+        adjustUnclearDepthIdx=cellfun(@(x) strcmp(x(1:4),'H132') | strcmp(x(1:4),'H146')|...
+            strcmp(x(1:4),'H147') | strcmp(x(1:4),'H145'), {recInfo(subjectIdxNum).Filename});
+        convDepths(adjustUnclearDepthIdx)=mat2cell(([convDepths{adjustUnclearDepthIdx}]+1)',ones(sum(adjustUnclearDepthIdx),1));
+    end
+
+    [recInfo(subjectIdxNum).Depth]=deal(convDepths{:});
+%     [~, ~, recDepthInfo] = xlsread([cd '\' subjects{subjectID} ' track depth 0.xlsx'],'Sheet1',['A2:E' num2str(size(uniqueTracks,1)+1)]);
+    [~, ~, recDepthInfo] = xlsread([cd '\' subjects{subjectID} ' track depth 0.xlsx'],'Sheet1'); recDepthInfo=recDepthInfo(2:end,:);
+    recDepthInfo(cellfun(@(x) ~isempty(x) && isnumeric(x) && isnan(x),recDepthInfo)) = {''};
+    recDepthsSubject = recDepthInfo(:,1);    
+    recDepthInfo = recDepthInfo(:,[2,3,4,5]); recDepthInfo = reshape([recDepthInfo{:}],size(recDepthInfo));
+    recDepths=table(recDepthsSubject,recDepthInfo(:,1),recDepthInfo(:,2),recDepthInfo(:,3),recDepthInfo(:,4),'VariableNames',{'Subject' 'ML' 'AP' 'Depth' 'Calibration'}); 
+    recDepthIdx=cellfun(@(x) strcmp(x,subjects{subjectID}), recDepths.Subject);
+
+    % adjust depth, add track and electrode numbering (and color, optional)
     for trackID=1:size(uniqueTracks,1)
         recInThatTrack=[recInfo(subjectIdx).MLCoordinates] == uniqueTracks(trackID,1) &...
             [recInfo(subjectIdx).APCoordinates] == uniqueTracks(trackID,2);
+        depthCalibrationIdx=[recDepths(recDepthIdx,'ML').ML]==uniqueTracks(trackID,1) &...
+            [recDepths(recDepthIdx,'AP').AP]==uniqueTracks(trackID,2);
         for recEntry=1:sum(recInThatTrack)
             recInThatTrackIdxNum=find(recInThatTrack);
+            recInfo(subjectIdxNum(recInThatTrackIdxNum(recEntry))).Depth=...
+                recInfo(subjectIdxNum(recInThatTrackIdxNum(recEntry))).Depth + [recDepths(depthCalibrationIdx,'Depth').Depth] + [recDepths(depthCalibrationIdx,'Calibration').Calibration];
             recInfo(subjectIdxNum(recInThatTrackIdxNum(recEntry))).TrackNumber = trackID;
            % color by track:
 %             recInfo(subjectIdxNum(recInThatTrackIdxNum(recEntry))).Location = markerLoc{mod(trackID,5)+1}; %this is a trick to obtain different track colors
+            colorCoding='byTracks';
             recInfo(subjectIdxNum(recInThatTrackIdxNum(recEntry))).ElectrodeNumber = recEntry; %although recording may come from same sessions. That could be changed
         end
     end
     
     % as a control: color by rotation
+%     colorCoding='byRotation';
 %     uniqueRotations=unique([recInfo(subjectIdxNum).Rotation]);
 %     for recEntry=1:numel(subjectIdxNum)
 %         rotationID=find(recInfo(subjectIdxNum(recEntry)).Rotation==uniqueRotations);
@@ -165,12 +196,36 @@ for subjectID=1:length(subjects)
 %     end
 
     % color by cluster
+%     'stn'   -1	raspberry
+%     'gpi'   2	blue
+%     'gpe'	101 green
+%     'snr'	102 lavender
+%     'snc'	103 seashell
+    colorCoding='byClusters';
     uniqueClusters=unique([recInfo(subjectIdxNum).ClusterID]);
     for recEntry=1:numel(subjectIdxNum)
         clusterID=find(recInfo(subjectIdxNum(recEntry)).ClusterID==uniqueClusters);
         recInfo(subjectIdxNum(recEntry)).Location = markerLoc{mod(clusterID,5)+1};
     end
     
+    % color by subject
+%     colorCoding='bySubject';
+%     [recInfo(subjectIdx).Location] = deal(markerLoc{subjectID});
+
+    %standardize subject name's size
+    if size(subjects{subjectID},2)~=5
+        try 
+            monkeyName=subjects{subjectID}(1:5);
+        catch 
+            monkeyName=[subjects{subjectID} repmat('_',[1, 5-size(subjects{subjectID},2)])];
+        end
+    else
+        monkeyName=subjects{subjectID};
+    end
+    
+    %get filenames
+    fileNameList=cellfun(@(x) [x repmat(' ',[1,18-length(x)])] ,{recInfo(subjectIdxNum).Filename},'UniformOutput',false);
+
     dataTable = table(...
         rot90(1:numel(subjectIdxNum),3),...
         [recInfo(subjectIdxNum).TrackNumber]',...
@@ -178,10 +233,10 @@ for subjectID=1:length(subjects)
         [recInfo(subjectIdxNum).MLCoordinates]',...
         ones(numel(subjectIdxNum),1)*2,...
         repmat('Zero',[numel(subjectIdxNum),1]),...
-        repmat(subjects{subjectID},[numel(subjectIdxNum),1]),...
-        repmat('None',[numel(subjectIdxNum),1]),...
+        repmat(monkeyName,[numel(subjectIdxNum),1]),...
+        vertcat(fileNameList{:}),... % repmat('None',[numel(subjectIdxNum),1]),... 
         repmat(regexprep(date,'-','/'),[numel(subjectIdxNum),1]),...
-        -[recInfo(subjectIdxNum).Depth]'/1000,...
+        vertcat(recInfo(subjectIdxNum).Depth),...
         vertcat(recInfo(subjectIdxNum).Location),... 
         repmat('None',[numel(subjectIdxNum),1]),...
         repmat(' ',[numel(subjectIdxNum),1]),...
@@ -195,8 +250,50 @@ for subjectID=1:length(subjects)
         'SiteComment','MotorResponse','MicrostimResponse','RecordFile',...
         'ElectrodeCalibr','ElectrodeNumber'});
     
-    writetable(dataTable,[subjects{subjectID} '_' recLoc '.txt'],'Delimiter','\t','WriteRowNames',true)
+    writetable(dataTable,[subjects{subjectID} '_' recLoc '_ColorCoding_' colorCoding '.txt'],'Delimiter','\t','WriteRowNames',true)
     
+    % for reference transformation
+    subjectRefML{subjectID}=cDNcoordinates(strcmp(cDNcoordinates.Subject,subjects{subjectID}),'ML').ML;
+    subjectRefAP{subjectID}=cDNcoordinates(strcmp(cDNcoordinates.Subject,subjects{subjectID}),'AP').AP;
+    subjectRefDepth{subjectID}=cDNcoordinates(strcmp(cDNcoordinates.Subject,subjects{subjectID}),'Depth').Depth;
+
+    
+   refTransfo{subjectID,1}= table(...
+        rot90(1:numel(subjectIdxNum),3),...
+        [recInfo(subjectIdxNum).TrackNumber]',...
+        [subjectRecInfo.APCoordinates]'-subjectRefAP{subjectID},...
+        [subjectRecInfo.MLCoordinates]'-subjectRefML{subjectID},...
+        ones(numel(subjectIdxNum),1)*2,...
+        repmat('Zero',[numel(subjectIdxNum),1]),...
+        repmat(monkeyName,[numel(subjectIdxNum),1]),... %MonkeyName
+        vertcat(fileNameList{:}),... %repmat('None',[numel(subjectIdxNum),1]),... 
+        repmat(regexprep(date,'-','/'),[numel(subjectIdxNum),1]),...
+        vertcat(recInfo(subjectIdxNum).Depth)-subjectRefDepth{subjectID},...   %Depth
+        vertcat(recInfo(subjectIdxNum).Location),... 
+        repmat('None',[numel(subjectIdxNum),1]),...
+        repmat(' ',[numel(subjectIdxNum),1]),...
+        repmat(' ',[numel(subjectIdxNum),1]),...
+        repmat('TBD',[numel(subjectIdxNum),1]),...
+        ones(numel(subjectIdxNum),1)*-24,...
+        [recInfo(subjectIdxNum).ElectrodeNumber]',... % electrode number is the particular session for a given track.
+        ... %Each electrode may have a different calibration
+        'VariableNames',{'SiteNumber','TrackNumber','AP','ML','Chamber',...
+        'MonkeyID','MonkeyName','TrackComment','Date','Depth','Location',...
+        'SiteComment','MotorResponse','MicrostimResponse','RecordFile',...
+        'ElectrodeCalibr','ElectrodeNumber'});
+    
+
 end
 
+refTransfo=vertcat(refTransfo{:}); 
 
+for subjectID=1:length(subjects)
+dataTable=refTransfo;
+dataTable.AP=dataTable.AP+subjectRefAP{subjectID};
+dataTable.ML=dataTable.ML+subjectRefML{subjectID};
+dataTable.Depth=dataTable.Depth+subjectRefDepth{subjectID};
+cd(['C:\MonkeyCicerone\' subjects{subjectID} 'Folder\' subjects{subjectID} 'Recordings'])
+  
+writetable(dataTable,['AllSubjects_' recLoc '_Referenced_to_' subjects{subjectID} '_ColorCoding_' colorCoding '.txt'],...
+      'Delimiter','\t','WriteRowNames',true)
+end
