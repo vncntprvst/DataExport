@@ -81,7 +81,7 @@ for fileNum=1:size(dataFileList,2)
 %           setenv('PATH', [PATH ':/home/anaconda3/bin']);
 %           type 'conda info -e' in terminal to find path
         scDirectory=strtrim(cell2mat(regexp(scDirectory,...
-            ['(?<=' userinfo.circusEnv '\s+)\S+?(?=\n)'],'match')))
+            ['(?<=' userinfo.circusEnv '\s+)\S+?(?=\n)'],'match')));
         if isempty(scDirectory)
             [~,scDirectory]=system('conda info -e');
             scDirectory=cell2mat(regexp(scDirectory,'(?<=root                  \*  ).+?(?=\n)','match'));
@@ -113,16 +113,20 @@ for fileNum=1:size(dataFileList,2)
     end
     
     %% generate template params file
-    % if contains(computer('arch'),'win')
-    %     condaActivation='activate ';
-    % else
-    %     condaActivation='source activate ';
-    % end
-    
-    [status,cmdout] = system(['echo y | '... %'cd ' userinfo.envScriptDir ' &' condaActivation userinfo.circusEnv ' &'...
-        'spyking-circus ' exportDir filesep dataFile '.dat &'...
-        'exit &']); %  final ' &' makes command run in background outside Matlab
-    
+    if contains(computer('arch'),'win')
+%         condaActivation='activate ';
+        [status,cmdout] = system(['cd ' userinfo.envScriptDir ' &'...
+            ... %'activate ' userinfo.circusEnv ' &'...
+            'spyking-circus ' ...
+            exportDir filesep dataFile '.dat <' userinfo.ypipe ' &'... % echo y doesn't work on Windows, so passing file with y as sole content
+            'exit &']); %  final ' &' makes command run in background outside Matlab
+    else
+        %         condaActivation='source activate ';
+        [status,cmdout] = system(['echo y | '... %'cd ' userinfo.envScriptDir ' &' condaActivation userinfo.circusEnv ' &'...
+            'spyking-circus ' exportDir filesep dataFile '.dat &'...
+            'exit &']); %  final ' &' makes command run in background outside Matlab
+    end
+        
     if status~=0
         return
     end

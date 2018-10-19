@@ -12,9 +12,10 @@ exportDir=([cd filesep 'SpikeSortingFolder']);
 for fileNum=1:size(dataFiles,1)
     [recInfo,data,trials] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
     %% save data
-    fileID = fopen([dataFiles(fileNum).name '_export.dat'],'w');
+    fileID = fopen([dataFiles(fileNum).name(1:end-4) '_export.dat'],'w');
     fwrite(fileID,data,'int16');
     fclose(fileID);
+    %% save data info % need to individualize file name!
     cd(exportDir)
     save('rec_info','recInfo','-v7.3');
 end
