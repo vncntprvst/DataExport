@@ -1,5 +1,5 @@
 userinfo=UserDirInfo;
-subjectName='vIRt20'
+subjectName='vIRt22'
 
 %% load or create channel mapping
 if exist([userinfo.probemap filesep 'ImplantList.mat'],'file') %the implant list contains
@@ -56,43 +56,63 @@ recInfo.subjectName=subjectName;
 recInfo.probeID=probeID;
 recSys={'Blackrock','OpenEphys'};
 recSysIndex = listdlg('PromptString','Select Recording System:',...
-                           'SelectionMode','single',...
-                           'ListString',recSys);
+    'SelectionMode','single',...
+    'ListString',recSys);
 recInfo.sys=recSys{recSysIndex};
 
 %% Aggregate probe info
+probeInfo.radius=100;
 if isfield(recInfo,'probeLayout')
     probeInfo.numChannels=size(recInfo.probeLayout,1);
-
+    
     switch recInfo.sys
         case 'OpenEphys'
             probeInfo.chanMap=[recInfo.probeLayout.OEChannel];
         case 'Blackrock'
             probeInfo.chanMap=[recInfo.probeLayout.BlackrockChannel];
     end
-
+    
     probeInfo.connected=true(probeInfo.numChannels,1);
     probeInfo.connected(isnan([recInfo.probeLayout.Shank]))=0;
     probeInfo.kcoords=[recInfo.probeLayout.Shank];
     probeInfo.kcoords=probeInfo.kcoords(~isnan([recInfo.probeLayout.Shank]));
-    probeInfo.xcoords = zeros(1,probeInfo.numChannels);
-    probeInfo.ycoords = 200 * ones(1,probeInfo.numChannels);
-    groups=unique(probeInfo.kcoords);
-    for elGroup=1:length(groups)
-        if isnan(groups(elGroup))
-            continue;
+    if isfield(recInfo.probeLayout,'x_geom')
+        probeInfo.xcoords = [recInfo.probeLayout.x_geom];
+        probeInfo.ycoords = [recInfo.probeLayout.y_geom];
+        probeInfo.radius=250;
+    else % set coordinates by group, as if tetrodes
+        probeInfo.xcoords = zeros(1,probeInfo.numChannels);
+        probeInfo.ycoords = 200 * ones(1,probeInfo.numChannels);
+        groups=unique(probeInfo.kcoords);
+        for elGroup=1:length(groups)
+            if isnan(groups(elGroup))
+                continue;
+            end
+            groupIdx=find(probeInfo.kcoords==groups(elGroup));
+            probeInfo.xcoords(groupIdx(2:2:end))=20;
+            probeInfo.xcoords(groupIdx)=probeInfo.xcoords(groupIdx)+(0:length(groupIdx)-1);
+            probeInfo.ycoords(groupIdx)=...
+                probeInfo.ycoords(groupIdx)*(elGroup-1);
+            probeInfo.ycoords(groupIdx(round(end/2)+1:end))=...
+                probeInfo.ycoords(groupIdx(round(end/2)+1:end))+20;
         end
-        groupIdx=find(probeInfo.kcoords==groups(elGroup));
-        probeInfo.xcoords(groupIdx(2:2:end))=20;
-        probeInfo.xcoords(groupIdx)=probeInfo.xcoords(groupIdx)+(0:length(groupIdx)-1);
-        probeInfo.ycoords(groupIdx)=...
-            probeInfo.ycoords(groupIdx)*(elGroup-1);
-        probeInfo.ycoords(groupIdx(round(end/2)+1:end))=...
-            probeInfo.ycoords(groupIdx(round(end/2)+1:end))+20;
     end
 end
 
-probeInfo.radius=100;
+%% [optional] remap
+remapping=true;
+if remapping
+    probeInfo.xcoords=probeInfo.xcoords(probeInfo.chanMap);
+    probeInfo.ycoords=probeInfo.ycoords(probeInfo.chanMap);
+    disp('Creating probe file with remapped channels');
+    
+    switch recInfo.sys
+        case 'OpenEphys'
+            probeID=[probeID '_OpenEphysMapping'];
+        case 'Blackrock'
+            probeID=[probeID '_BlackrockMapping'];
+    end
+end
 
 %% save file
 cd([userinfo.probemap filesep])
@@ -105,7 +125,7 @@ fprintf(fileID,'\t1: {\r');
 %     sort(probeInfo.chanMap))),',$',''));
 fprintf(fileID,'\t\t''channels'': list(range(%d)),\r',probeInfo.numChannels);
 fprintf(fileID,'\t\t''geometry'': {\r');
-fprintf(fileID,'\t\t\t%s\r',strtrim(sprintf('%d: [%d, %d], ',...
+fprintf(fileID,'\t\t\t%s\r',strtrim(sprintf('\t\t\t%d: [%0.1f, %0.1f],\r',...
     reshape([(1:length(probeInfo.chanMap))-1;probeInfo.xcoords;probeInfo.ycoords],...
     [length(probeInfo.chanMap)*3,1])))); % -1 because of 0 indexing
 fprintf(fileID,'\t\t},\r');

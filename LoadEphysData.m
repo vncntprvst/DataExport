@@ -4,7 +4,33 @@ cd(dname);
 try
     rec.dirBranch=regexp(strrep(dname,'-','_'),['\' filesep '\w+'],'match');
     disp(['loading ' dname fname]);
-    if contains(fname,'continuous')
+    if contains(fname,'.dat')
+        %% Converted data or Open Ephys binary 
+        % need to know how many channels
+%         cd ../../../..
+%         recSettings = readOpenEphysXMLSettings('settings.xml')
+        
+        rec.numRecChan=1:32; % have to update that
+        traces = memmapfile(fullfile(dname,fname),'Format','int16');
+        data=traces.Data;         
+        if logical(mod(length(data),numel(rec.numRecChan)+3)) 
+            disp('unexpected number of samples. Abort') 
+            return
+        else
+            rec.dur=int32(length(data)/(numel(rec.numRecChan)+3));
+            data=reshape(data,[numel(rec.numRecChan)+3 rec.dur]);
+            data=data(1:32,:);
+        end
+        
+        rec.date='';
+        rec.samplingRate=30000;
+        rec.bitResolution=0.195;
+        rec.sys='OpenEphys';
+               
+%         excerptWindow=1:300000;
+%         dataExcerpt=data(1,excerptWindow); %sDataExcerpt=smooth(single(dataExcerpt'),'loess');
+%         figure; plot(dataExcerpt,'k','linewidth',0.1);
+    elseif contains(fname,'continuous')
         %% Open Ephys old format
         %list all .continuous data files
         fileListing=dir;
