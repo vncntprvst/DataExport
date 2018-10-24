@@ -64,9 +64,11 @@ for fileNum=1:size(dataFileList,2)
             end
         end
         try
-            probeID=implantList(contains(strrep({implantList.Mouse},'-',''),subjectName,'IgnoreCase',true)).Probe;
+            probeID=implantList(contains(strrep({implantList.Mouse},'-',''),...
+                subjectName,'IgnoreCase',true)).Probe;
         catch %'default'
-            probeID=implantList(contains(strrep({implantList.Mouse},'-',''),'default','IgnoreCase',true)).Probe;
+            probeID=implantList(contains(strrep({implantList.Mouse},'-',''),...
+                'default','IgnoreCase',true)).Probe;
         end
         %     probeFile=['C:\\Users\\' userinfo.user '\\spyking-circus\\probes\\' probeID '.prb'];
         %     if ~contains(computer('arch'),'win')

@@ -3,16 +3,23 @@ function Trials = LoadTTL(fName)
 % userinfo=UserDirInfo;
 Trials=struct('start',[],'end',[],'interval',[],'sampleRate',[],'continuous',[]);
 if contains(fName,'raw.kwd')
+    fNameArg=fName;
     %% Kwik format - raw data
-    fileListing=dir;
-    fName=regexp(fName,'^\w+\d\_','match');fName=fName{1}(1:end-1);
-    %making sure it exists
-    fName=fileListing(cellfun(@(x) contains(x,[fName '.kwe']),{fileListing.name},...
-        'UniformOutput',true)).name;
+    fName=regexp(fName,'^\w+\d\_','match');
+    if isempty(fName)
+        cd(regexp(fNameArg,['.+(?=\' filesep '.+$)'],'match','once'))
+        fName='experiment1.kwe';
+    else
+        fileListing=dir;
+        fName=fName{1}(1:end-1);
+        %making sure it exists
+        fName=fileListing(cellfun(@(x) contains(x,[fName '.kwe']),{fileListing.name},...
+            'UniformOutput',true)).name;
+    end
     Trials=getOE_Trials(fName);
     %        h5readatt(fName,'/recordings/0/','start_time')==0
-    Trials.startClockTime=h5read(fName,'/event_types/Messages/events/time_samples');
-    Trials.startClockTime= Trials.startClockTime(1);
+    Trials.recordingStartTime=h5read(fName,'/event_types/Messages/events/time_samples');
+    Trials.recordingStartTime=Trials.recordingStartTime(1);
     % '/recordings/0/','start_time' has systematic
     % difference with '/event_types/Messages/events/time_samples',
     % because of the time it takes to open files.
@@ -23,8 +30,13 @@ elseif contains(fName,'.mat')
         Trials=[];
     end
 elseif contains(fName,'continuous')
-    %% Open Ephys old format
-    Trials=getOE_Trials('all_channels.events');
+    % Open Ephys format
+    try 
+        Trials=getOE_Trials('channel_states.npy');
+    catch 
+    % May be the old format
+        Trials=getOE_Trials('all_channels.events');
+    end
 elseif contains(fName,'nex')
     %% TBSI format
     % not coded yet

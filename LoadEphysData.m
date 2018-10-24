@@ -7,30 +7,38 @@ try
     if contains(fname,'.dat')
         %% Converted data or Open Ephys binary 
         % need to know how many channels
-%         cd ../../../..
-%         recSettings = readOpenEphysXMLSettings('settings.xml')
-        
-        rec.numRecChan=1:32; % have to update that
+        try 
+            rec = readOpenEphysXMLSettings('../../../../settings.xml');
+            rec.numRecChan=[rec.signals.channelInfo.channelNumber]+1; 
+            rec.date='';
+            rec.samplingRate=30000; % SampleRateString="30.0 kS/s" Duh
+            rec.bitResolution=0.195; 
+            rec.sys='OpenEphys';        
+            % load timestamps
+            rec.timeStamps=readNPY('timestamps.npy');
+            rec.recordingStartTime=rec.timeStamps(1); % should be the same as start time in sync_messages.txt
+        catch
+            rec.numRecChan=1:32; % need to ask user
+            rec.date='';
+            rec.samplingRate=30000;
+            rec.bitResolution=0.195; %assuming OpenEphys
+            rec.sys=''; 
+        end
         traces = memmapfile(fullfile(dname,fname),'Format','int16');
         data=traces.Data;         
-        if logical(mod(length(data),numel(rec.numRecChan)+3)) 
-            disp('unexpected number of samples. Abort') 
-            return
-        else
+        if logical(mod(length(data),numel(rec.numRecChan)+3)) %AUX channels still there
+            rec.dur=int32(length(data)/(numel(rec.numRecChan)));
+            data=reshape(data,[numel(rec.numRecChan) rec.dur]);
+            data=data(1:32,:);
+        elseif logical(mod(length(data),numel(rec.numRecChan)))
             rec.dur=int32(length(data)/(numel(rec.numRecChan)+3));
             data=reshape(data,[numel(rec.numRecChan)+3 rec.dur]);
             data=data(1:32,:);
+        else
+            disp('unexpected number of samples. Abort') 
+            return
         end
-        
-        rec.date='';
-        rec.samplingRate=30000;
-        rec.bitResolution=0.195;
-        rec.sys='OpenEphys';
-               
-%         excerptWindow=1:300000;
-%         dataExcerpt=data(1,excerptWindow); %sDataExcerpt=smooth(single(dataExcerpt'),'loess');
-%         figure; plot(dataExcerpt,'k','linewidth',0.1);
-    elseif contains(fname,'continuous')
+     elseif contains(fname,'continuous')
         %% Open Ephys old format
         %list all .continuous data files
         fileListing=dir;

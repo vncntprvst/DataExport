@@ -77,7 +77,7 @@ else
 end
 
 %% Get file path
-[handles.fname,handles.dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
+[handles.fname,handles.dname] = uigetfile({'*.dat;*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
     '*.*','All Files' },'Select data file to export',dataFolder);
 if handles.fname==0
     handles.fname='';
@@ -224,8 +224,17 @@ end
 %% Remap channels
 function PB_remap_Callback(hObject, eventdata, handles)
 if isfield(handles,'remapped') && handles.remapped==true
-    disp('Channels already remapped');
-    return;
+    remapChoice = questdlg('Channels already remapped', ...
+        'Remapping option', 'Unmap (reload)', 'Remap anyway','OK forget it','OK forget it');
+    switch remapChoice
+        case 'Unmap (reload)'
+            handles=LoadData(handles);
+            handles.remapped=false;
+            guidata(hObject, handles);
+            return
+        case 'OK forget it'
+            return;
+    end    
 end
 
 % find probe mappings directory
@@ -304,7 +313,9 @@ if makeProbeFile
     eval(['save(''' probeID '.mat'',''probeID'')']);
     %     makeProbeFile=0;
 end
-
+% probeDir=dir(handles.userinfo.probemap);
+% cellfun(@(x) logical(sum(strcmp(probeID,x)))...
+%     & contains(x,'mat'),{probeDir.name})
 load([handles.userinfo.probemap filesep probeID '.mat']);
 wsVars=who;
 handles.rec_info.probeLayout=eval(wsVars{contains(wsVars,'Probe')});
@@ -551,7 +562,7 @@ function CB_SpecifyName_Callback(hObject, eventdata, handles)
 %% --- Executes on button press in PB_LoadFile.
 function PB_LoadFile_Callback(hObject, eventdata, handles)
 
-[handles.fname,handles.dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
+[handles.fname,handles.dname] = uigetfile({'*.dat;*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
     '*.*','All Files' },'Most recent data',handles.dname);
 if handles.fname==0
     handles.fname='';
@@ -765,11 +776,11 @@ set(handles.CB_CreateSCParamsFile,'value',0);
 set(handles.CB_KSChannelMap,'value',0);
 set(handles.CB_KSConfigurationFile,'value',0);  
 set(handles.CB_JRClustProbeFile,'value',0);
-set(handles.RB_ExportSpikes_OnlineSort,'value',1);
-set(handles.RB_ExportSpikes_OfflineSort,'value',0);
-set(handles.CB_SpecifyName,'value',0);
-set(handles.CB_SpecifyDir,'value',1);
-handles.exportType='OnlineSort';
+% set(handles.RB_ExportSpikes_OnlineSort,'value',1);
+% set(handles.RB_ExportSpikes_OfflineSort,'value',0);
+% set(handles.CB_SpecifyName,'value',0);
+% set(handles.CB_SpecifyDir,'value',1);
+handles.exportType='Spikes';
 ExportData(hObject, eventdata, handles);
 guidata(hObject, handles);
 
@@ -957,8 +968,9 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
     dirlisting = dir(handles.dname);
     dirlisting = {dirlisting(:).name};
     dirlisting=dirlisting(cellfun('isempty',cellfun(@(x) strfind('.',x(end)),dirlisting,'UniformOutput',false)));
-    fileformats={'continuous','kwe','kwik','nex','ns6'};
-    whichformat=cellfun(@(x) find(~cellfun('isempty',strfind(fileformats,x(end-2:end)))),dirlisting,'UniformOutput',false);
+    fileformats={'dat','continuous','kwe','kwik','nex','ns6'};
+    whichformat=cellfun(@(x) find(~cellfun('isempty',strfind(fileformats,x(end-2:end)))),...
+        dirlisting,'UniformOutput',false);
     whichformat=fileformats(unique([whichformat{~cellfun('isempty',whichformat)}]));
     waitbar( 0.5, wb, 'Getting spikes from online sorting');
     switch whichformat{:}
@@ -981,36 +993,36 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
             RecDur=RawInfo.Dataspace.Size;
             
             %Keep info on ADC resolution
-            %             Spikes.Online_Sorting.Resolution=
+            %             spikes.Online_Sorting.Resolution=
             
             %Keep list of channels with > 1Hz firing rate
             %             GoodChans=cell(size(ChanInfo.Groups.Groups,1),1);
             for ChExN=1:size(ChanInfo.Groups.Groups,1)
                 if ChanInfo.Groups.Groups(ChExN).Datasets(2).Dataspace.Size/...
                         (RecDur(2)/handles.rec_info.samplingRate)>1
-                    Spikes.Online_Sorting.GoodChans(ChExN)=regexp(ChanInfo.Groups.Groups(ChExN).Name,'\d+$','match');
+                    spikes.Online_Sorting.GoodChans(ChExN)=regexp(ChanInfo.Groups.Groups(ChExN).Name,'\d+$','match');
                 end
             end
             
             for ChExN=1:size(handles.rawData,1)
-                Spikes.Online_Sorting.electrode(ChExN)=ChExN;
-                Spikes.Online_Sorting.samplingRate(ChExN,1)=handles.rec_info.samplingRate;
+                spikes.Online_Sorting.electrode(ChExN)=ChExN;
+                spikes.Online_Sorting.samplingRate(ChExN,1)=handles.rec_info.samplingRate;
                 try
-                    Spikes.Online_Sorting.Units{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/recordings']);
-                    Spikes.Online_Sorting.SpikeTimes{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/time_samples']);
-                    Spikes.Online_Sorting.Waveforms{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/waveforms_filtered']);
+                    spikes.Online_Sorting.Units{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/recordings']);
+                    spikes.Online_Sorting.SpikeTimes{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/time_samples']);
+                    spikes.Online_Sorting.Waveforms{ChExN,1}=h5read('experiment1.kwx',['/channel_groups/' num2str(ChExN-1) '/waveforms_filtered']);
                 catch
-                    Spikes.Online_Sorting.Units{ChExN,1}=[];
-                    Spikes.Online_Sorting.SpikeTimes{ChExN,1}=[];
-                    Spikes.Online_Sorting.Waveforms{ChExN,1}=[];
+                    spikes.Online_Sorting.Units{ChExN,1}=[];
+                    spikes.Online_Sorting.SpikeTimes{ChExN,1}=[];
+                    spikes.Online_Sorting.Waveforms{ChExN,1}=[];
                 end
             end
         case 'nex'
         case 'ns6' % Blackrock
             SpikeData = openNEV([handles.dname handles.fname(1:end-3) 'nev']);
             % ADC resolution is 0.25uV per bit. Divide values by 4 to convert to uV
-            Spikes.Online_Sorting.Resolution={0.25, 'uV per bit'};
-            %             GoodChans=unique(SpikeData.Data.Spikes.Electrode);
+            spikes.Online_Sorting.Resolution={0.25, 'uV per bit'};
+            %             GoodChans=unique(SpikeData.Data.spikes.Electrode);
             %             if size(handles.rawData,1)~=length(GoodChans)
             %                 disp('not as many spiking channels as raw data')
             %             end
@@ -1023,21 +1035,23 @@ if get(handles.RB_ExportSpikes_OnlineSort,'value')==1
             end
             
             for ChExN=1:size(GoodChans,2)
-                Spikes.Online_Sorting.electrode(ChExN)=ChExN;
-                Spikes.Online_Sorting.samplingRate(ChExN,1)=SpikeData.MetaTags.SampleRes;
+                spikes.Online_Sorting.electrode(ChExN)=ChExN;
+                spikes.Online_Sorting.samplingRate(ChExN,1)=SpikeData.MetaTags.SampleRes;
                 try
-                    Spikes.Online_Sorting.Units{ChExN,1}=int8(SpikeData.Data.Spikes.Unit...
-                        (SpikeData.Data.Spikes.Electrode==GoodChans(ChExN)));
-                    Spikes.Online_Sorting.SpikeTimes{ChExN,1}=SpikeData.Data.Spikes.TimeStamp...
-                        (SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
-                    Spikes.Online_Sorting.Waveforms{ChExN,1}=SpikeData.Data.Spikes.Waveform...
-                        (:,SpikeData.Data.Spikes.Electrode==GoodChans(ChExN));
+                    spikes.Online_Sorting.Units{ChExN,1}=int8(SpikeData.Data.spikes.Unit...
+                        (SpikeData.Data.spikes.Electrode==GoodChans(ChExN)));
+                    spikes.Online_Sorting.SpikeTimes{ChExN,1}=SpikeData.Data.spikes.TimeStamp...
+                        (SpikeData.Data.spikes.Electrode==GoodChans(ChExN));
+                    spikes.Online_Sorting.Waveforms{ChExN,1}=SpikeData.Data.spikes.Waveform...
+                        (:,SpikeData.Data.spikes.Electrode==GoodChans(ChExN));
                 catch
-                    Spikes.Online_Sorting.Units{ChExN,1}=[];
-                    Spikes.Online_Sorting.SpikeTimes{ChExN,1}=[];
-                    Spikes.Online_Sorting.Waveforms{ChExN,1}=[];
+                    spikes.Online_Sorting.Units{ChExN,1}=[];
+                    spikes.Online_Sorting.SpikeTimes{ChExN,1}=[];
+                    spikes.Online_Sorting.Waveforms{ChExN,1}=[];
                 end
             end
+        case 'dat'
+            
         otherwise
     end
 end
@@ -1045,70 +1059,72 @@ end
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1
     waitbar( 0.5, wb, 'Getting spike times from RMS threshold');
     for ChExN=1:size(handles.rawData,1)
-        Spikes.Offline_Threshold.electrode(ChExN)=ChExN;
-        Spikes.Offline_Threshold.samplingRate(ChExN,1)=handles.rec_info.samplingRate;
-        thld=rms((handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:)));
-        Spikes.Offline_Threshold.RMS_Threshold=str2double(get(handles.TxEdit_RMSLevel,'String'));
+        spikes.Offline_Threshold.electrode(ChExN)=ChExN;
+        spikes.Offline_Threshold.samplingRate(ChExN,1)=handles.rec_info.samplingRate;
+        thld=rms((handles.rawData(spikes.Offline_Threshold.electrode(ChExN),:)));
+        spikes.Offline_Threshold.RMS_Threshold=str2double(get(handles.TxEdit_RMSLevel,'String'));
         
         %% get spike times
         switch get(handles.LB_ThresholdSide,'value')
             case 1
-                Spikes.Offline_Threshold.Threshold_Side='upper';
-                Spikes.Offline_Threshold.data{ChExN,1}=diff(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:)>Spikes.Offline_Threshold.RMS_Threshold*thld)==1;
+                spikes.Offline_Threshold.Threshold_Side='upper';
+                spikes.Offline_Threshold.data{ChExN,1}=diff(handles.rawData(...
+                    spikes.Offline_Threshold.electrode(ChExN),:)>...
+                    spikes.Offline_Threshold.RMS_Threshold*thld)==1;
             case 2
-                Spikes.Offline_Threshold.Threshold_Side='lower';
-                Spikes.Offline_Threshold.data{ChExN,1}=diff(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:)<-Spikes.Offline_Threshold.RMS_Threshold*thld)==1;
+                spikes.Offline_Threshold.Threshold_Side='lower';
+                spikes.Offline_Threshold.data{ChExN,1}=diff(handles.rawData(...
+                    spikes.Offline_Threshold.electrode(ChExN),:)<...
+                    -spikes.Offline_Threshold.RMS_Threshold*thld)==1;
         end
-        Spikes.Offline_Threshold.type{ChExN,1}='nativeData';
+        spikes.Offline_Threshold.type{ChExN,1}='nativeData';
         
         % plots
         %         figure; hold on;
-        %         midRec=round(size(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:),2)/2);
-        %         plotWin=5*Spikes.Offline_Threshold.samplingRate;
-        %         plot(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),midRec-plotWin:midRec+plotWin));
-        %         % plot(handles.rawData(Spikes.Offline_Threshold.electrode,:)+1500);
+        %         midRec=round(size(handles.rawData(spikes.Offline_Threshold.electrode(ChExN),:),2)/2);
+        %         plotWin=5*spikes.Offline_Threshold.samplingRate;
+        %         plot(handles.rawData(spikes.Offline_Threshold.electrode(ChExN),midRec-plotWin:midRec+plotWin));
+        %         % plot(handles.rawData(spikes.Offline_Threshold.electrode,:)+1500);
         %         % thd10=rms((handles.rawData(10,:)));
-        %         thld=rms(handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:));
+        %         thld=rms(handles.rawData(spikes.Offline_Threshold.electrode(ChExN),:));
         %         plot(-5*thld*ones(1,size(midRec-plotWin:midRec+plotWin,2)));
         %         plot(-40*thld*ones(1,size(midRec-plotWin:midRec+plotWin,2)));
         %         % plot(1500-4*thd*ones(1,size(handles.rawData,2)));
-        %         % foo=handles.rawData(Spikes.Offline_Threshold.electrode(ChExN),:)>(-40*thld);
+        %         % foo=handles.rawData(spikes.Offline_Threshold.electrode(ChExN),:)>(-40*thld);
         
-        % plot(Spikes.Offline_Threshold.nativeData*500);
+        % plot(spikes.Offline_Threshold.nativeData*500);
         
         %% downsample to 1 millisecond bins
-        Spikes.Offline_Threshold.samplingRate(ChExN,2)=1000;
-        Spikes.Offline_Threshold.type{ChExN,2}='downSampled';
-        spikeTimeIdx=zeros(1,size(Spikes.Offline_Threshold.data{ChExN,1},2));
-        spikeTimeIdx(Spikes.Offline_Threshold.data{ChExN,1})=1;
-        spikeTimes=find(Spikes.Offline_Threshold.data{ChExN,1});
+        spikes.Offline_Threshold.samplingRate(ChExN,2)=1000;
+        spikes.Offline_Threshold.type{ChExN,2}='downSampled';
+        spikeTimeIdx=zeros(1,size(spikes.Offline_Threshold.data{ChExN,1},2));
+        spikeTimeIdx(spikes.Offline_Threshold.data{ChExN,1})=1;
+        spikeTimes=find(spikes.Offline_Threshold.data{ChExN,1});
         binSize=1;
-        numBin=ceil(size(spikeTimeIdx,2)/(Spikes.Offline_Threshold.samplingRate(ChExN,1)/Spikes.Offline_Threshold.samplingRate(ChExN,2))/binSize);
+        numBin=ceil(size(spikeTimeIdx,2)/(spikes.Offline_Threshold.samplingRate(ChExN,1)/spikes.Offline_Threshold.samplingRate(ChExN,2))/binSize);
         % binspikeTime = histogram(double(spikeTimes), numBin); %plots directly histogram
-        [Spikes.Offline_Threshold.data{ChExN,2},Spikes.Offline_Threshold.binEdges{ChExN}] = histcounts(double(spikeTimes), linspace(0,size(spikeTimeIdx,2),numBin));
-        Spikes.Offline_Threshold.data{ChExN,2}(Spikes.Offline_Threshold.data{ChExN,2}>1)=1; %no more than 1 spike per ms
+        [spikes.Offline_Threshold.data{ChExN,2},spikes.Offline_Threshold.binEdges{ChExN}] = histcounts(double(spikeTimes), linspace(0,size(spikeTimeIdx,2),numBin));
+        spikes.Offline_Threshold.data{ChExN,2}(spikes.Offline_Threshold.data{ChExN,2}>1)=1; %no more than 1 spike per ms
         
         % figure;
-        % bar(Spikes.Offline_Threshold.binEdges(1:end-1)+round(mean(diff(Spikes.Offline_Threshold.binEdges))/2),Spikes.Offline_Threshold.downSampled,'hist');
+        % bar(spikes.Offline_Threshold.binEdges(1:end-1)+round(mean(diff(spikes.Offline_Threshold.binEdges))/2),spikes.Offline_Threshold.downSampled,'hist');
     end
 end
 
 %% get clock time (time at which recording started, to sync with TTLs)
-if ~isfield(handles.trials,'startClockTime') | isempty(handles.trials.startClockTime)
+if ~isfield(handles.trials,'startClockTime') | isempty(handles.trials.recordingStartTime)
     waitbar( 0.7, wb, 'Getting clock time');
     if strfind(handles.fname,'raw.kwd')
         % to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
-        % don't use
-        % h5readatt(handles.fname,'/recordings/0/','start_time').That
-        % start_time happens earlier (like 20ms before). The difference is
+        % don't use h5readatt(handles.fname,'/recordings/0/','start_time').
+        % That start_time happens earlier (like 20ms before). The difference is
         % due to the time it takes to open files
-        handles.trials.startClockTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
-        handles.trials.startClockTime=handles.trials.startClockTime(1);
-        
+        handles.trials.recordingStartTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
+        handles.trials.recordingStartTime=handles.trials.recordingStartTime(1);    
     elseif strfind(handles.fname,'continuous')
-        handles.trials.startClockTime=handles.rec_info.startClockTime.ts;
+        handles.trials.recordingStartTime=handles.rec_info.recordingStartTime;
     else
-        handles.trials.startClockTime=0; %Recording and TTL times already sync'ed
+        handles.trials.recordingStartTime=0; %Recording and TTL times already sync'ed
     end
 end
 
@@ -1201,7 +1217,7 @@ if ~isfield(handles.rec_info,'probeID') &...
         % find Probe ID
         try
             probeID=implantList(contains(strrep({implantList.Mouse},'-',''),...
-                subjectName,'IgnoreCase',true)).Probe;
+                subjectName,'IgnoreCase',true)).Probe;            
         catch
             probeID=['default_' num2str(handles.rec_info.numRecChan) 'Channels'];
         end
@@ -1271,7 +1287,7 @@ end
 
 %% [optional] export spikes
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
-    save([handles.rec_info.exportname '_spikes'],'Spikes','-v7.3');
+    save([handles.rec_info.exportname '_spikes'],'spikes','-v7.3');
     save([handles.rec_info.exportname '_trials'],'-struct','handles','trials','-v7.3');
 end
 
@@ -1280,13 +1296,23 @@ if get(handles.CB_CreateSCParamsFile,'value')==1
     if ~isfield(handles.rec_info,'probeID')
         handles.rec_info.probeID ='';
     end
-    userParams={'raw_binary';num2str(handles.rec_info.samplingRate);'int16';...
-        num2str(length(handles.rec_info.exportedChan));handles.rec_info.probeID;'2';'8';'both';'True';'10000';...
-        '0.002';'True';'0.98';'2, 5';'0.8';'True';'True'};
+    option{2}= struct('parameterNames',{'file_format';'sampling_rate';...
+        'data_dtype';'nb_channels';'mapping';'overwrite';'output_dir';...
+        'N_t';'spike_thresh';'peaks';'isolation';'remove_median';...
+        'max_clusters';'smart_search';'smart_select';'cc_merge';...
+        'dispersion';'noise_thr';'make_plots';'gpu_only';...
+        'collect_all';'correct_lag';'auto_mode'},... %'max_elts','nclus_min'
+        'userParams',{'raw_binary';num2str(handles.rec_info.samplingRate);'int16';...
+        num2str(length(handles.rec_info.exportedChan));handles.rec_info.probeID;...
+        'True';... %False to keep original binary file as is
+        '';'3';'7';'both';'True';'True';'15';'True';'True';...
+         '0.975';'2, 5';'0.9';'True';'False';'True';'True';'0.1'});
     if handles.batchExport==0
-        [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,{'paramsfile';userParams});
+        option{1}='paramsfile';
+        [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,option);
     else
-        [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,{'paramsfile_noInputdlg';userParams});
+        option{1}='paramsfile_noInputdlg';
+        [status,cmdout]=RunSpykingCircus(cd,handles.rec_info.exportname,option);
     end
     if status~=1
         disp('problem generating the parameter file')
@@ -1353,7 +1379,7 @@ end
 
 %% [optional] create probe and parameter files for JRClust
 if get(handles.CB_JRClustProbeFile,'value')==1
-    if contains(handles.rec_info.probeID,'CN32ChProbe')
+    if isfield(handles.rec_info,'probeID') & contains(handles.rec_info.probeID,'CN32ChProbe')
         probeFile='cnt_32_500.prb';
         copyfile(['C:\Code\EphysDataProc\DataExport\probemaps\' probeFile],...
             cd);
