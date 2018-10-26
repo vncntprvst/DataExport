@@ -1,0 +1,77 @@
+total_nb_channels = 16
+radius            = 100
+channel_groups    = {}
+
+def get_geometry(i):
+    if i == 1: 
+        return {0: [0, 0]}
+    elif i == 2:
+        return {1: [200, 0]}
+    elif i == 3:
+        return {2: [400, 0]}
+    elif i == 4:
+        return {3: [600, 0]}
+    elif i == 5:
+        return {4: [800, 0]}
+    elif i == 6:
+        return {5: [1000, 0]}
+    elif i == 7:
+        return {6: [1200, 0]}
+    elif i == 8:
+        return {7: [1400, 0]}
+    elif i == 9:
+        return {8: [0, 200]}
+    elif i == 10:
+        return {9: [200, 200]}
+    elif i == 11:
+        return {10: [400, 200]}
+    elif i == 12:
+        return {11: [600, 200]}
+    elif i == 13:
+        return {12: [800, 200]}
+    elif i == 14:
+        return {13: [1000, 200]}
+    elif i == 15:
+        return {14: [1200, 200]}
+    else:
+        return {15: [1400, 200]}
+
+def get_channels(i):
+    if i == 1: 
+        return range(1)
+    elif i == 2:
+        return range(1, 2)
+    elif i == 3:
+        return range(2, 3)
+    elif i == 4:
+        return range(3, 4)
+    elif i == 5:
+        return range(4, 5)
+    elif i == 6:
+        return range(5, 6)
+    elif i == 7:
+        return range(6, 7)
+    elif i == 8:
+        return range(7, 8)
+    elif i == 9:
+        return range(8, 9)
+    elif i == 10:
+        return range(9, 10)
+    elif i == 11:
+        return range(10, 11)
+    elif i == 12:
+        return range(11, 12)
+    elif i == 13:
+        return range(12, 13)
+    elif i == 14:
+        return range(13, 14)
+    elif i == 15:
+        return range(14, 15)
+    else:
+        return range(15, 16)
+
+for i in xrange(1, 17):
+    channel_groups[i]             = {}
+    channel_groups[i]["channels"] = get_channels(i) 
+    channel_groups[i]["geometry"] = get_geometry(i)
+    channel_groups[i]["graph"]    = []
