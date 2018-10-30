@@ -1,4 +1,4 @@
-function dataFiles=BatchExport(exportDir)
+function [dataFiles,allRecInfo]=BatchExport(exportDir)
 % not finalized yet
 % if export for SC, must not be run as root (so start Matlab from /bin/matlab as user)
 % Vincent Prevosto 10/16/2018
@@ -11,7 +11,8 @@ dataFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.dat','*raw.kwd','*RAW*Ch*.nex','*.ns*'},'UniformOutput', false);
 dataFiles=vertcat(dataFiles{~cellfun('isempty',dataFiles)});
 % just in case other export / spike sorting has been performed, do not include those files
-dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_export';'_TTLs';'_all_sc';'_VideoFrameTimes'}),...
+dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_export';'_TTLs';...
+    'temp_wh';'_nopp.dat';'_all_sc';'_VideoFrameTimes'}),...
     {dataFiles.name})); %by filename
 dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_SC';'_JR';'_ML'}),...
     {dataFiles.folder})); % by folder name
@@ -23,10 +24,11 @@ end
 videoFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.mp4','*.avi'},'UniformOutput', false);
 videoFiles=vertcat(videoFiles{~cellfun('isempty',videoFiles)});
-
+allRecInfo=cell(size(dataFiles,1),1);
 for fileNum=1:size(dataFiles,1)
     try
         [recInfo,data,trials] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
+        allRecInfo{fileNum}=recInfo;
     catch
         continue
     end
@@ -47,7 +49,8 @@ for fileNum=1:size(dataFiles,1)
     else
         recordingName=dataFiles(fileNum).name(1:end-4);
     end
-    
+    allRecInfo{fileNum}.recordingName=recordingName;
+%     continue
     %% find / ask for probe file when exporting and copy to export folder
     
     cd(exportDir)
