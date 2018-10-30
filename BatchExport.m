@@ -50,52 +50,57 @@ for fileNum=1:size(dataFiles,1)
         recordingName=dataFiles(fileNum).name(1:end-4);
     end
     allRecInfo{fileNum}.recordingName=recordingName;
-%     continue
+    %     continue
     %% find / ask for probe file when exporting and copy to export folder
     
     cd(exportDir)
     %% save data
-    fileID = fopen([recordingName '_export.dat'],'w');
-    fwrite(fileID,data,'int16');
-    fclose(fileID);
-    %% save TTL file
-    if exist('trials','var') && ~isempty(trials.start)
-        fileID = fopen([recordingName '_TTLs.dat'],'w');
-        fwrite(fileID,[trials.start(:,2)';trials.end(:,2)'],'int32');
+        fileID = fopen([recordingName '_export.dat'],'w');
+        fwrite(fileID,data,'int16');
         fclose(fileID);
-    end
-    %% save data info
-    save([recordingName '_recInfo'],'recInfo','-v7.3');
+        %% save TTL file
+        if exist('trials','var') && ~isempty(trials.start)
+            fileID = fopen([recordingName '_TTLs.dat'],'w');
+            fwrite(fileID,[trials.start(:,2)';trials.end(:,2)'],'int32');
+            fclose(fileID);
+        end
+        %% save data info
+        save([recordingName '_recInfo'],'recInfo','-v7.3');
     
-    %% check if there's a corresponding video file
+    %% export video TLLs
+    %     check if there's a corresponding video file
     nameCheck=cellfun(@(vflnm) sum(ismember(recordingName,vflnm(1:end-4))),...
         {videoFiles.name});
     if logical(find(nameCheck>length(recordingName)*0.9,1))
-        cd(TTLDir)
         try
             correspondingVideoFileName= videoFiles(nameCheck==max(nameCheck)).name(1:end-4);
         catch
             correspondingVideoFileName=recordingName;
         end
-        
-        try
-            % see LoadTTL - change function if needed
-            if contains(dataFiles(fileNum).name, 'continuous.dat')
-                cd(['..' filesep '..' filesep 'events' filesep 'Rhythm_FPGA-100.0' filesep 'TTL_1']);
-                videoTTLFileName='channel_states.npy';
-            elseif contains(dataFiles(fileNum).name, 'raw.kwd')
-                videoTTLFileName='';
-            end
-            frameCaptureTime=GetTTLFrameTime(videoTTLFileName);
-            %             [recInfo,data,trials] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
-        catch
-            %     if no TTL channel, check csv files
-            %     videoFrameTimes=ReadVideoFrameTimes(dirName)
-            
-        end
     else
+    end
+    try
+        cd(TTLDir);
+        % see LoadTTL - change function if needed
+        if contains(dataFiles(fileNum).name, 'continuous.dat')
+            cd(['..' filesep '..' filesep 'events' filesep 'Rhythm_FPGA-100.0' filesep 'TTL_1']);
+            videoTTLFileName='channel_states.npy';
+        elseif contains(dataFiles(fileNum).name, 'raw.kwd')
+            dirListing=dir(TTLDir);
+            videoTTLFileName=dirListing(cellfun(@(x) contains(x,'kwe'),...
+                {dirListing.name})).name;
+        end
+        frameCaptureTime=GetTTLFrameTime(videoTTLFileName);
+%             cd(exportDir); cd (['..' filesep 'WhiskerTracking'])
+%         save([recordingName '_VideoFrameTimes'],'frameCaptureTime')
+%         continue;
+        %             [recInfo,data,trials] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
+    catch
+        %     if no TTL channel, check csv files
+        %     videoFrameTimes=ReadVideoFrameTimes(dirName)
         frameCaptureTime=[];
     end
+    
     %% save video frame time file
     cd(exportDir); cd (['..' filesep 'WhiskerTracking'])
     if exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
