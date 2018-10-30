@@ -1,6 +1,6 @@
 function BatchExport(exportDir)
 % not finalized yet
-% must not be run as root (so start Matlab from /bin/matlab as user if on Linux)
+% if export for SC, must not be run as root (so start Matlab from /bin/matlab as user)
 % Vincent Prevosto 10/16/2018
 
 if ~isdir('SpikeSortingFolder')
