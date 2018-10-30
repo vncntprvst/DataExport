@@ -1,4 +1,4 @@
-function BatchExport(exportDir)
+function dataFiles=BatchExport(exportDir)
 % not finalized yet
 % if export for SC, must not be run as root (so start Matlab from /bin/matlab as user)
 % Vincent Prevosto 10/16/2018
