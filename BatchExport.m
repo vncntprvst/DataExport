@@ -11,7 +11,7 @@ dataFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.dat','*raw.kwd','*RAW*Ch*.nex','*.ns6'},'UniformOutput', false);
 dataFiles=vertcat(dataFiles{~cellfun('isempty',dataFiles)});
 % just in case other export / spike sorting has been performed, do not include those files
-dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_export';'_TTLs'; '_vSyncTTLs';...
+dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_export';'_TTLs'; '_trialTTLs'; '_vSyncTTLs';...
     'temp_wh';'_nopp.dat';'_all_sc';'_VideoFrameTimes'}),...
     {dataFiles.name})); %by filename
 dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_SC';'_JR';'_ML'}),...
@@ -135,7 +135,11 @@ for fileNum=1:size(dataFiles,1)
     %% save vSyncTTL file
     if exist('trials','var') && ~isempty(trials.start)
         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
-        fwrite(fileID,[trials.start(:,2)';trials.end(:,2)'],'int32');
+        if size(trials.start,1)==1 && size(trials.start,2)>size(trials.start,1)
+            fwrite(fileID,[trials.start;trials.end],'int32');
+        else
+            fwrite(fileID,[trials.start(:,2)';trials.end(:,2)'],'int32');
+        end
         fclose(fileID);
     end
     %% save data info
