@@ -8,7 +8,8 @@ try
         %% Converted data or Open Ephys binary 
         % need to know how many channels
         try 
-            rec = readOpenEphysXMLSettings('../../../../settings.xml');
+            rec = readOpenEphysXMLSettings(['..' filesep '..' filesep ...
+                '..' filesep '..' filesep 'settings.xml']);
             rec.numRecChan=[rec.signals.channelInfo.channelNumber]+1; 
             rec.date='';
             rec.samplingRate=30000; % SampleRateString="30.0 kS/s" Duh
