@@ -69,16 +69,16 @@ for fileNum=1:size(dataFiles,1)
     
     %% export video TLLs
     %     check if there's a corresponding video file
-    nameCheck=cellfun(@(vflnm) sum(ismember(recordingName,vflnm(1:end-4))),...
-        {videoFiles.name});
-    if logical(find(nameCheck>length(recordingName)*0.9,1))
-        try
-            correspondingVideoFileName= videoFiles(nameCheck==max(nameCheck)).name(1:end-4);
-        catch
-            correspondingVideoFileName=recordingName;
-        end
-    else
-    end
+%     nameCheck=cellfun(@(vflnm) sum(ismember(recordingName,vflnm(1:end-4))),...
+%         {videoFiles.name});
+%     if logical(find(nameCheck>length(recordingName)*0.9,1))
+%         try
+%             correspondingVideoFileName= videoFiles(nameCheck==max(nameCheck)).name(1:end-4);
+%         catch
+%             correspondingVideoFileName=recordingName;
+%         end
+%     else
+%     end
     try
         cd(TTLDir);
         % see LoadTTL - change function if needed
@@ -104,7 +104,7 @@ for fileNum=1:size(dataFiles,1)
     %% save video frame time file
     cd(exportDir); cd (['..' filesep 'WhiskerTracking'])
     if exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
-        fileID = fopen([correspondingVideoFileName '_VideoFrameTimes.dat'],'w');
+        fileID = fopen([recordingName '_VideoFrameTimes.dat'],'w');
         fwrite(fileID,frameCaptureTime,'double');
         fclose(fileID);
     end
