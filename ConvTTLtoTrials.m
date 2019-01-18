@@ -11,13 +11,19 @@ Trials.samplingRate=samplingRate;
 TTLseq=diff(Trials.TTLtimes)./(Trials.samplingRate/1000); % convert to ms
 % [~,occurence,~]=unique(TTLseq);
 
+if length(TTLseq)>10 && mode(TTLseq(1:5))>=250 && mode(TTLseq(1:5))~=mode(TTLseq) %mixed TTL pattern, e.g., vSync +behavior trials
+    startSeq=find(TTLseq ~= mode(TTLseq(1:5)),1)+1;
+    TTLtimes=TTLtimes(startSeq:end); Trials.TTLtimes=TTLtimes;
+    TTLdur=TTLdur(startSeq:end);
+    TTLseq=diff(Trials.TTLtimes)./(Trials.samplingRate/1000); % convert to ms
+end
 if sum(TTLseq==mode(TTLseq))/length(TTLseq)*100>50 % stimulations
     % in Stimulation recordings, there are only Pulse onsets, i.e., no
     % double TTL to start, and no TTL to end
     Trials.start=Trials.TTLtimes;
     Trials.end=Trials.start+TTLdur;
     Trials.interval=Trials.start(2:end)-Trials.end(1:end-1);
-elseif mode(TTLseq)>=500 && numel(TTLseq)<20 %  max(unique(TTLseq))/TTLtimes>0.9 % video sync at beginning and end of recording
+elseif mode(TTLseq)>=250 && numel(TTLseq)<20 %  max(unique(TTLseq))/TTLtimes>0.9 % video sync at beginning and end of recording
     Trials.start=Trials.TTLtimes;
     Trials.end=Trials.start+TTLdur;
     Trials.interval=Trials.start(2:end)-Trials.end(1:end-1);
@@ -35,23 +41,23 @@ else % task trials
     %     %   601 ... etc
     %
     %     %NEW CODE, UNTESTED
-    %     TTLlength=mode(TTLdur); %in ms
-    %
-    %     if TTLseq(1)>=TTLlength*2+10 %missed first trial initiation, discard times
-    %         TTLidx=find(TTLseq<=TTLlength*2+10,1)-1;
-    %         Trials.TTLtimes=Trials.TTLtimes([TTLidx TTLidx(end)+1]);
-    %         TTLdur=TTLdur([TTLidx TTLidx(end)+1]);
-    %         TTLseq=TTLseq(TTLidx,end);
-    %     end
-    %     if TTLseq(end)<=TTLlength*2+10  %unfinished last trial
-    %         TTLidx=find(TTLseq<=TTLlength*2+10,1,'last')-1;
-    %         Trials.TTLtimes=Trials.TTLtimes([TTLidx TTLidx(end)+1]);
-    %         TTLdur=TTLdur([TTLidx TTLidx(end)+1]);
-    %     end
-    %
-    %     Trials.start=Trials.TTLtimes(1:3:end);
-    %     Trials.end=Trials.start+TTLdur;
-    %     Trials.interval=Trials.start(2:end)-Trials.end(1:end-1);
+        TTLlength=mode(TTLdur); %in ms
+    
+        if TTLseq(1)>=TTLlength*2+10 %missed first trial initiation, discard times
+            TTLidx=find(TTLseq<=TTLlength*2+10,1)-1;
+            Trials.TTLtimes=Trials.TTLtimes([TTLidx TTLidx(end)+1]);
+            TTLdur=TTLdur([TTLidx TTLidx(end)+1]);
+            TTLseq=TTLseq(TTLidx,end);
+        end
+        if TTLseq(end)<=TTLlength*2+10  %unfinished last trial
+            TTLidx=find(TTLseq<=TTLlength*2+10,1,'last')-1;
+            Trials.TTLtimes=Trials.TTLtimes([TTLidx TTLidx(end)+1]);
+            TTLdur=TTLdur([TTLidx TTLidx(end)+1]);
+        end
+    
+        Trials.start=Trials.TTLtimes(1:3:end);
+        Trials.end=Trials.TTLtimes(3:3:end);
+        Trials.interval=Trials.start(2:end)-Trials.end(1:end-1);
 end
 
 if size(Trials.start,1) > size(Trials.start,2)

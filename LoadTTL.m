@@ -91,10 +91,16 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
         elseif sum(cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank}))
             analogChannels=cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank});
         end
-        Trials.continuous=analogChannel.Data(analogChannels,:); %send sync TTL to AINP1
-        if ~isempty(Trials.continuous) && ~iscell(Trials.continuous)
-            [TTLtimes,TTLdur]=ContinuousToTTL(Trials.continuous,'keepfirstonly');
-            Trials=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
+        analogTTLTrace=analogChannel.Data(analogChannels,:); %send sync TTL to AINP1
+        if ~isempty(analogTTLTrace) && ~iscell(analogTTLTrace)
+            clear Trials
+            for TTLChan=1:size(analogTTLTrace,1)
+                [TTLtimes,TTLdur]=ContinuousToTTL(analogTTLTrace(TTLChan,:),'keepfirstonly');
+                Trials{TTLChan}=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
+            end
+            if size(Trials,2)==1
+                Trials=Trials{1};
+            end
         end
     end
 end

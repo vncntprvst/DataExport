@@ -34,7 +34,17 @@ copyfile(fullfile(probePathName,probeFileName),fullfile(cd,'SpikeSortingFolder',
 %% export each file
 for fileNum=1:size(dataFiles,1)
     try
-        [recInfo,data,trials] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
+        [recInfo,data,TTLdata] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
+        switch size(TTLdata,2)
+            case 1
+                vSyncTTL=TTLdata;
+                clear trialTTL
+            case 2
+                trialTTL=TTLdata{1}; %might be laser stim or behavior
+                vSyncTTL=TTLdata{2};
+            case 3
+                % TBD
+        end
         allRecInfo{fileNum}=recInfo;
     catch
         continue
@@ -98,13 +108,13 @@ for fileNum=1:size(dataFiles,1)
             videoFrameTimes=ReadVideoFrameTimes(videoFrameTimeFileName);
             % synchronize based on trial structure
             try
-                vSyncDelay=mean(trials.TTLtimes/trials.samplingRate*1000-...
+                vSyncDelay=mean(vSyncTTL.TTLtimes/vSyncTTL.samplingRate*1000-...
                     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(...
                     [true;diff(videoFrameTimes.TTLFrames)>1]))');
             catch % different number of TTLs. Possibly "laser" sync. Assuming first 20 correct
                 videoIndexing=[true;diff(videoFrameTimes.TTLFrames)>1];
                 videoIndexing(max(find(videoIndexing,20))+1:end)=false;
-                vSyncDelay=mean(trials.TTLtimes(1:20)/trials.samplingRate*1000-...
+                vSyncDelay=mean(vSyncTTL.TTLtimes(1:20)/vSyncTTL.samplingRate*1000-...
                     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(...
                     videoIndexing))');
             end
@@ -126,14 +136,18 @@ for fileNum=1:size(dataFiles,1)
     allRecInfo{fileNum}.recordingName=recordingName;
     
     cd(exportDir)
-    
+    if ~isdir(recordingName)
+    %create export directory
+        mkdir(recordingName);
+    end
+    cd(recordingName)
     %% save data
     fileID = fopen([recordingName '_export.dat'],'w');
     fwrite(fileID,data,'int16');
     fclose(fileID);
     
-    %% save vSyncTTL file
-    if exist('trials','var') && ~isempty(trials.start)
+    %% save TTL data
+    if exist('vSyncTTL','var') && ~isempty(vSyncTTL.start)
         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
         if size(trials.start,1)==1 && size(trials.start,2)>size(trials.start,1)
             fwrite(fileID,[trials.start;trials.end],'int32');
@@ -142,11 +156,19 @@ for fileNum=1:size(dataFiles,1)
         end
         fclose(fileID);
     end
+    if exist('trialTTL','var') && ~isempty(trialTTL.start)
+        fileID = fopen([recordingName '_trialTTLs.dat'],'w');
+        fwrite(fileID,[trialTTL.start(:,2)';trialTTL.end(:,2)'],'int32');
+        fclose(fileID);
+    end
+    
     %% save data info
     save([recordingName '_recInfo'],'recInfo','-v7.3');
     
     %% save video frame time file
-    cd(exportDir); cd (['..' filesep 'WhiskerTracking'])
+%     cd ..
+%     mkdir('VideoTracking');
+%     cd ('VideoTracking')
     if exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
         fileID = fopen([recordingName '_VideoFrameTimes.dat'],'w');
         fwrite(fileID,frameCaptureTime,'double');
@@ -154,5 +176,6 @@ for fileNum=1:size(dataFiles,1)
     end
     
 end
+cd ..
 
 

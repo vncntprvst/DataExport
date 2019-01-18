@@ -13,9 +13,11 @@ dftParams = regexprep(dftParams,'fpath', ['''' strrep(dName,filesep,[filesep fil
 dftParams = regexprep(dftParams,'fName', ['''' fName  '.dat''']);
 
 % write new params file
+cd(dName)
 fid  = fopen(['config_' fName '.m'],'w');
 fprintf(fid,'%s',dftParams);
 fclose(fid);
+cd ..
 
 cmdout='configuration file generated';
 paramFStatus=1;
