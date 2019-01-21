@@ -146,13 +146,13 @@ for fileNum=1:size(dataFiles,1)
     fwrite(fileID,data,'int16');
     fclose(fileID);
     
-    %% save TTL data
+    %% save video sync TTL data
     if exist('vSyncTTL','var') && ~isempty(vSyncTTL.start)
         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
-        if size(trials.start,1)==1 && size(trials.start,2)>size(trials.start,1)
-            fwrite(fileID,[trials.start;trials.end],'int32');
+        if size(vSyncTTL.start,1)==1 && size(vSyncTTL.start,2)>size(vSyncTTL.start,1)
+            fwrite(fileID,[vSyncTTL.start;vSyncTTL.end],'int32');
         else
-            fwrite(fileID,[trials.start(:,2)';trials.end(:,2)'],'int32');
+            fwrite(fileID,[vSyncTTL.start(:,2)';vSyncTTL.end(:,2)'],'int32');
         end
         fclose(fileID);
     end
@@ -165,7 +165,7 @@ for fileNum=1:size(dataFiles,1)
     %% save data info
     save([recordingName '_recInfo'],'recInfo','-v7.3');
     
-    %% save video frame time file
+    %% save video frame time file (not needed if vSync TTLs)
 %     cd ..
 %     mkdir('VideoTracking');
 %     cd ('VideoTracking')
