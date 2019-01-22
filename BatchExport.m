@@ -27,9 +27,16 @@ videoFiles=vertcat(videoFiles{~cellfun('isempty',videoFiles)});
 allRecInfo=cell(size(dataFiles,1),1);
 
 %% find / ask for probe file when exporting and copy to export folder
-[probeFileName,probePathName] = uigetfile('*.mat','Select the .mat probe file',...
+probeFile = cellfun(@(fileFormat) dir([cd filesep 'SpikeSortingFolder' filesep fileFormat]),...
+    {'*Probe*'},'UniformOutput', false); 
+if ~isempty(probeFile{:})
+    probeFileName=probeFile{1, 1}.name;
+    probePathName=probeFile{1, 1}.folder;
+else
+    [probeFileName,probePathName] = uigetfile('*.mat','Select the .mat probe file',...
     '/home/wanglab/Code/EphysDataProc/DataExport/probemaps');
-copyfile(fullfile(probePathName,probeFileName),fullfile(cd,'SpikeSortingFolder',probeFileName));
+    copyfile(fullfile(probePathName,probeFileName),fullfile(cd,'SpikeSortingFolder',probeFileName));
+end
     
 %% export each file
 for fileNum=1:size(dataFiles,1)
@@ -141,10 +148,21 @@ for fileNum=1:size(dataFiles,1)
         mkdir(recordingName);
     end
     cd(recordingName)
+    
     %% save data
     fileID = fopen([recordingName '_export.dat'],'w');
     fwrite(fileID,data,'int16');
     fclose(fileID);
+    
+    %% save trial/stim TTLs
+    if exist('trialTTL','var') && ~isempty(trialTTL.start)
+        fileID = fopen([recordingName '_trialTTLs.dat'],'w');
+        fwrite(fileID,[trialTTL.start(:,2)';trialTTL.end(:,2)'],'int32'); %ms resolution
+        fclose(fileID);
+        %save timestamps in seconds units as .csv
+        dlmwrite([recordingName '_trialTS.csv'],trialTTL.start(:,2)/1000,...
+            'delimiter', ',', 'precision', '%5.11f');
+    end
     
     %% save video sync TTL data
     if exist('vSyncTTL','var') && ~isempty(vSyncTTL.start)
@@ -156,12 +174,7 @@ for fileNum=1:size(dataFiles,1)
         end
         fclose(fileID);
     end
-    if exist('trialTTL','var') && ~isempty(trialTTL.start)
-        fileID = fopen([recordingName '_trialTTLs.dat'],'w');
-        fwrite(fileID,[trialTTL.start(:,2)';trialTTL.end(:,2)'],'int32');
-        fclose(fileID);
-    end
-    
+
     %% save data info
     save([recordingName '_recInfo'],'recInfo','-v7.3');
     
