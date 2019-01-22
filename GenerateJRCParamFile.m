@@ -30,10 +30,10 @@ delete(paramFileName)
 
 %% replace parameters with user values (if any)
 if exist('inputParams','var') && ~isempty(inputParams)
-    for paramNum=1:2:length(inputParams)
+    for paramNum=1:size(inputParams,1)
         paramsContent = regexprep(paramsContent,...
-            ['(?<=' inputParams{paramNum} ' = ).+?(?=;)'],...
-            ['''' inputParams{paramNum+1} '''']);
+            ['(?<=' inputParams{paramNum,1} ' = ).+?(?=;)'],...
+            inputParams{paramNum,2});
     end
 end
 
