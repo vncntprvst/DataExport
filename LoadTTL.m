@@ -1,7 +1,7 @@
-function Trials = LoadTTL(fName)
+function TTLs = LoadTTL(fName)
 % get TTL times and structure
 % userinfo=UserDirInfo;
-Trials=struct('start',[],'end',[],'interval',[],'sampleRate',[],'continuous',[]);
+TTLs=struct('start',[],'end',[],'interval',[],'sampleRate',[],'continuous',[]);
 if contains(fName,'raw.kwd')
     fNameArg=fName;
     %% Kwik format - raw data
@@ -16,10 +16,10 @@ if contains(fName,'raw.kwd')
         fName=fileListing(cellfun(@(x) contains(x,[fName '.kwe']),{fileListing.name},...
             'UniformOutput',true)).name;
     end
-    Trials=getOE_Trials(fName);
+    TTLs=getOE_Trials(fName);
     %        h5readatt(fName,'/recordings/0/','start_time')==0
-    Trials.recordingStartTime=h5read(fName,'/event_types/Messages/events/time_samples');
-    Trials.recordingStartTime=Trials.recordingStartTime(1);
+    TTLs.recordingStartTime=h5read(fName,'/event_types/Messages/events/time_samples');
+    TTLs.recordingStartTime=TTLs.recordingStartTime(1);
     % '/recordings/0/','start_time' has systematic
     % difference with '/event_types/Messages/events/time_samples',
     % because of the time it takes to open files.
@@ -27,23 +27,29 @@ elseif contains(fName,'.mat')
     try
         load([fileName{:} '_trials.mat']);
     catch
-        Trials=[];
+        TTLs=[];
     end
 elseif contains(fName,'continuous')
     % Open Ephys format
     try 
-        Trials=getOE_Trials('channel_states.npy');
+        TTLs=getOE_Trials('channel_states.npy');
     catch 
     % May be the old format
-        Trials=getOE_Trials('all_channels.events');
+        TTLs=getOE_Trials('all_channels.events');
     end
+elseif contains(fName,'.bin')
+    TTLs = memmapfile(fullfile(cd,'ttl.bin'),'Offset',14,'Format','int8');
+    TTLs = TTLs.Data(TTLs.Data~=0);
+    figure; plot((TTLs(1:300000)))
+    figure; plot(diff(TTLs(1:300000)))
+    sum(diff(TTLs)==1)
 elseif contains(fName,'nex')
     %% TBSI format
     % not coded yet
 elseif contains(fName,'.npy')
     %     cd('..\..');
     exportDirListing=dir(cd); %regexp(cd,'\w+$','match')
-    Trials=importdata(exportDirListing(~cellfun('isempty',cellfun(@(x) contains(x,'_trials.'),...
+    TTLs=importdata(exportDirListing(~cellfun('isempty',cellfun(@(x) contains(x,'_trials.'),...
         {exportDirListing.name},'UniformOutput',false))).name);
 elseif contains(fName,'.ns') || contains(fName,'.nev')
     %% Blackrock raw data. File extension depends on sampling rate
@@ -57,7 +63,7 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
     if contains(fName,'.nev')
         %         NEV=openNEV('read', [dirName filesep fName]);
         load([fName(1:end-3), 'mat'])
-        Trials.sampleRate=NEV.MetaTags.SampleRes;
+        TTLs.sampleRate=NEV.MetaTags.SampleRes;
         %find which analog channel has inputs
         TTLChannel=cellfun(@(x) contains(x','ain'),{NEV.ElectrodesInfo.ElectrodeLabel}) & ...
             [NEV.ElectrodesInfo.DigitalFactor]>1000 & [NEV.ElectrodesInfo.HighThreshold]>0;
@@ -70,7 +76,7 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
         TTL_shapes=NEV.Data.Spikes.Waveform(:,NEV.Data.Spikes.Electrode==TTLChannel);
         artifactsIdx=median(TTL_shapes)<mean(median(TTL_shapes))/10;
         %             figure; plot(TTL_shapes(:,~artifactsIdx));
-        Trials.start=TTL_times(~artifactsIdx);
+        TTLs.start=TTL_times(~artifactsIdx);
     else
         if contains(fName,filesep)
             analogChannel = openNSx(fName);
@@ -96,10 +102,10 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
             clear Trials
             for TTLChan=1:size(analogTTLTrace,1)
                 [TTLtimes,TTLdur]=ContinuousToTTL(analogTTLTrace(TTLChan,:),'keepfirstonly');
-                Trials{TTLChan}=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
+                TTLs{TTLChan}=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
             end
-            if size(Trials,2)==1
-                Trials=Trials{1};
+            if size(TTLs,2)==1
+                TTLs=TTLs{1};
             end
         end
     end

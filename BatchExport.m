@@ -41,7 +41,7 @@ end
 %% export each file
 for fileNum=1:size(dataFiles,1)
     try
-        [recInfo,data,TTLdata] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
+        [recInfo,recordings,spikes,TTLdata] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
         switch size(TTLdata,2)
             case 1
                 vSyncTTL=TTLdata;
@@ -51,6 +51,11 @@ for fileNum=1:size(dataFiles,1)
                 vSyncTTL=TTLdata{2};
             case 3
                 % TBD
+            otherwise
+                if ~iscell(TTLdata)
+                    vSyncTTL=TTLdata;
+                    clear trialTTL
+                end
         end
         allRecInfo{fileNum}=recInfo;
     catch
@@ -151,8 +156,13 @@ for fileNum=1:size(dataFiles,1)
     
     %% save data
     fileID = fopen([recordingName '_export.dat'],'w');
-    fwrite(fileID,data,'int16');
+    fwrite(fileID,recordings,'int16');
     fclose(fileID);
+    
+    %% save spikes
+    if ~isempty(spikes.clusters)
+        save([recordingName '_spikes'],'-struct','spikes');
+    end
     
     %% save trial/stim TTLs
     if exist('trialTTL','var') && ~isempty(trialTTL.start)
@@ -167,7 +177,7 @@ for fileNum=1:size(dataFiles,1)
     %% save video sync TTL data
     if exist('vSyncTTL','var') 
         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
-        if isfield('vSyncTTL','start') && ~isempty(vSyncTTL.start)
+        if isfield(vSyncTTL,'start') && ~isempty(vSyncTTL.start)
             if size(vSyncTTL.start,1)==1 && size(vSyncTTL.start,2)>size(vSyncTTL.start,1)
                 fwrite(fileID,[vSyncTTL.start;vSyncTTL.end],'int32');
             else

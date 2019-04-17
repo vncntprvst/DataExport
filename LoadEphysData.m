@@ -1,45 +1,113 @@
-function [rec,data,trials] = LoadEphysData(fname,dname)
+function [rec,data,spikes,TTLs] = LoadEphysData(fname,dname)
 wb = waitbar( 0, 'Reading Data File...' );
 cd(dname);
+spikes=struct('clusters',[],'electrodes',[],'spikeTimes',[],'waveForms',[],'metadata',[]);
 try
     rec.dirBranch=regexp(strrep(dname,'-','_'),['\' filesep '\w+'],'match');
     disp(['loading ' dname fname]);
-    if contains(fname,'.dat')
-        %% Converted data or Open Ephys binary 
+    if contains(fname,'.bin')
+        %% Binary file from Intan/Paul's Julia interface
+        prompt = {'Enter number of recorded channels:'};
+        title = 'Channel list';
+        dims = [1 32];
+        definput = {'1'};
+        rec.numRecChan = str2double(cell2mat(inputdlg(prompt,title,dims,definput)));
+        %             rec.numRecChan=1:32; % need to ask user
+        traces = memmapfile(fullfile(dname,fname),'Format','int16');
+        data=traces.Data;
+        if ~logical(mod(length(data),8)) % 8 analog channels
+            rec.dur=int32(length(data)/8);
+            data=reshape(data,[8 rec.dur]);
+            data=data(1:rec.numRecChan,:);
+        elseif ~logical(mod(length(data),numel(rec.numRecChan))) %presumed single channel
+            rec.dur=int32(length(data)/(numel(rec.numRecChan)));
+            data=reshape(data,[numel(rec.numRecChan) rec.dur]);
+            data=data(1:rec.numRecChan,:);
+        else
+            disp('unexpected number of samples. Abort')
+            return
+        end
+        if strcmp(fname,'v.bin') && exist(fullfile(dname,'ts.bin'),'file')
+            rec.sys='Intan';
+            % load timestamps
+            sampleTimes=memmapfile(fullfile(dname,'ts.bin'),'Format','int64');
+            rec.timeStamps=sampleTimes.Data;
+            rec.recordingStartTime=rec.timeStamps(1);
+            rec.samplingRate=30000; % SampleRateString="30.0 kS/s" Duh
+            rec.bitResolution=0.195;
+            FileInfo = dir(fname);
+            rec.data = FileInfo.date;
+        end
+    elseif contains(fname,'.dat')
+        %% Binary file (e.g., exported data or Open Ephys binary)
         % need to know how many channels
-        try 
+        try
             rec = readOpenEphysXMLSettings(['..' filesep '..' filesep ...
                 '..' filesep '..' filesep 'settings.xml']);
-            rec.numRecChan=[rec.signals.channelInfo.channelNumber]+1; 
-            rec.date='';
+            ephysChannelsIdx=cellfun(@(x) str2double(x), rec.signals.channelInfo.channelGain)>0.1;
+            rec.numRecChan=rec.signals.channelInfo.channelNumber(ephysChannelsIdx)+1;
+            rec.channelMapping=rec.signals.channelInfo.Mapping(ephysChannelsIdx);
+            rec.date=rec.setupinfo.date;
             rec.samplingRate=30000; % SampleRateString="30.0 kS/s" Duh
-            rec.bitResolution=0.195; 
-            rec.sys='OpenEphys';        
+            rec.bitResolution=0.195;
+            rec.sys='OpenEphys';
             % load timestamps
             rec.timeStamps=readNPY('timestamps.npy');
             rec.recordingStartTime=rec.timeStamps(1); % should be the same as start time in sync_messages.txt
         catch
-            rec.numRecChan=1:32; % need to ask user
+            prompt = {'Enter number of recorded channels:'};
+            title = 'Channel list';
+            dims = [1 32];
+            definput = {'1:32'};
+            rec.numRecChan = str2double(cell2mat(inputdlg(prompt,title,dims,definput)));
+            %             rec.numRecChan=1:32; % need to ask user
             rec.date='';
             rec.samplingRate=30000;
-            rec.bitResolution=0.195; %assuming OpenEphys
-            rec.sys=''; 
+            rec.bitResolution=0.195; %assuming Intan / OpenEphys
+            rec.sys='';
         end
         traces = memmapfile(fullfile(dname,fname),'Format','int16');
-        data=traces.Data;         
-        if logical(mod(length(data),numel(rec.numRecChan)+3)) %AUX channels still there
+        data=traces.Data;
+        if ~logical(mod(length(data),numel(rec.numRecChan)))
             rec.dur=int32(length(data)/(numel(rec.numRecChan)));
             data=reshape(data,[numel(rec.numRecChan) rec.dur]);
-            data=data(1:32,:);
-        elseif logical(mod(length(data),numel(rec.numRecChan)))
+        elseif ~logical(mod(length(data),numel(rec.numRecChan)+3)) %AUX channels in data array
             rec.dur=int32(length(data)/(numel(rec.numRecChan)+3));
             data=reshape(data,[numel(rec.numRecChan)+3 rec.dur]);
-            data=data(1:32,:);
         else
-            disp('unexpected number of samples. Abort') 
+            disp('unexpected number of samples. Abort')
             return
         end
-     elseif contains(fname,'continuous')
+        if numel(rec.numRecChan)==1
+            data=data(1:rec.numRecChan,:);
+        else
+            data=data(rec.numRecChan,:);
+        end
+        %% get spike data
+        try
+%             cd(['..' filesep '..' filesep ])
+%             cd spikes
+            spikeFiles = cellfun(@(fileFormat) dir(['..' filesep '..' filesep 'spikes'...
+                filesep '**' filesep fileFormat]),...
+                {'*.npy'},'UniformOutput', false);
+            clusFIdx=cellfun(@(x) contains(x,'spike_clusters'), {spikeFiles{1, 1}.name});
+            spikes.clusters=readNPY(fullfile(spikeFiles{1, 1}(clusFIdx).folder,...
+                spikeFiles{1, 1}(clusFIdx).name));
+            electrodeFIdx=cellfun(@(x) contains(x,'spike_electrode'), {spikeFiles{1, 1}.name});
+            spikes.electrodes=readNPY(fullfile(spikeFiles{1, 1}(electrodeFIdx).folder,...
+                spikeFiles{1, 1}(electrodeFIdx).name));
+            spikeTimeFIdx=cellfun(@(x) contains(x,'spike_times'), {spikeFiles{1, 1}.name});
+            spikes.spikeTimes=readNPY(fullfile(spikeFiles{1, 1}(spikeTimeFIdx).folder,...
+                spikeFiles{1, 1}(spikeTimeFIdx).name));
+            waveformsFIdx=cellfun(@(x) contains(x,'spike_waveforms'), {spikeFiles{1, 1}.name});
+            spikes.waveForms=readNPY(fullfile(spikeFiles{1, 1}(waveformsFIdx).folder,...
+                spikeFiles{1, 1}(waveformsFIdx).name));
+            metadataFIdx=cellfun(@(x) contains(x,'metadata'), {spikeFiles{1, 1}.name});
+            spikes.metadata=readNPY(fullfile(spikeFiles{1, 1}(metadataFIdx).folder,...
+                spikeFiles{1, 1}(metadataFIdx).name));
+        catch
+        end
+    elseif contains(fname,'continuous')
         %% Open Ephys old format
         %list all .continuous data files
         fileListing=dir;
@@ -85,7 +153,7 @@ try
         % if more than one recording, ask which to load
         if size(rawInfo.Groups,1)>1
             recToLoad = inputdlg('Multiple recordings. Which one do you want to load?',...
-             'Recording', 1);
+                'Recording', 1);
             recToLoad = str2num(recToLoad{:});
         else
             recToLoad =1;
@@ -139,35 +207,35 @@ try
     elseif contains(fname,'.ns')
         %% Blackrock raw data
         tic;
-%         infoPackets = openCCF([fname(1:end-3) 'ccf'])
-%         memoryInfo=memory;
-%         fileSize=dir(fname);fileSize=fileSize.bytes/10^9;
-%         if fileSize>memoryInfo.MemAvailableAllArrays/10^9-2 % too big, read only part of it
-%             rec.partialRead=true;
-%             data = openLongNSx([cd filesep], fname);
-% %             % alternatively read only part of the file
-% %             fileHeader=openNSx([dname fname],'noread');
-% %             rec.fileSamples=fileHeader.MetaTags.DataPoints;
-% %             % max(fileSamples)/fileHeader.MetaTags.SamplingFreq/3600
-% %             splitVector=round(linspace(1,max(rec.fileSamples),round(fileSize/(5*10^3))));
-% %             data=openNSx([dname fname],['t:1:' num2str(splitVector(2))] , 'sample');
-%         else
-            data = openNSx([cd filesep fname]);
-%         end
+        %         infoPackets = openCCF([fname(1:end-3) 'ccf'])
+        %         memoryInfo=memory;
+        %         fileSize=dir(fname);fileSize=fileSize.bytes/10^9;
+        %         if fileSize>memoryInfo.MemAvailableAllArrays/10^9-2 % too big, read only part of it
+        %             rec.partialRead=true;
+        %             data = openLongNSx([cd filesep], fname);
+        % %             % alternatively read only part of the file
+        % %             fileHeader=openNSx([dname fname],'noread');
+        % %             rec.fileSamples=fileHeader.MetaTags.DataPoints;
+        % %             % max(fileSamples)/fileHeader.MetaTags.SamplingFreq/3600
+        % %             splitVector=round(linspace(1,max(rec.fileSamples),round(fileSize/(5*10^3))));
+        % %             data=openNSx([dname fname],['t:1:' num2str(splitVector(2))] , 'sample');
+        %         else
+        data = openNSx([cd filesep fname]);
+        %         end
         if iscell(data.Data) && size(data.Data,2)>1 %gets splitted into two cells sometimes for no reason
             data.Data=[data.Data{:}]; %remove extra data.Data=data.Data(:,1:63068290);
-                                      %data.MetaTags.DataPoints=63068290;
-                                      %data.MetaTags.DataDurationSec=data.MetaTags.DataDurationSec(1)-(data.MetaTags.DataDurationSec(1)-(63068290/30000))
-                                      %data.MetaTags.Timestamp=0;
-                                      %data.MetaTags.DataPointsSec=data.MetaTags.DataDurationSec;
+            %data.MetaTags.DataPoints=63068290;
+            %data.MetaTags.DataDurationSec=data.MetaTags.DataDurationSec(1)-(data.MetaTags.DataDurationSec(1)-(63068290/30000))
+            %data.MetaTags.Timestamp=0;
+            %data.MetaTags.DataPointsSec=data.MetaTags.DataDurationSec;
         end
-%         data = openNSxNew(fname);
+        %         data = openNSxNew(fname);
         
         %     analogData = openNSxNew([fname(1:end-1) '2']);
         %get basic info about recording
         rec.dur=data.MetaTags.DataPoints;
         rec.samplingRate=data.MetaTags.SamplingFreq;
-        rec.bitResolution=0.25; % �8 mV @ 16-Bit => 16000/2^16 = 0.2441 uV 
+        rec.bitResolution=0.25; % �8 mV @ 16-Bit => 16000/2^16 = 0.2441 uV
         rec.chanID=data.MetaTags.ChannelID;
         if ~sum(cellfun(@(x) contains(x,'ainp1'),{data.ElectrodesInfo.Label}))
             % maybe no Analog channels were recorded but caution: they may be
@@ -190,9 +258,9 @@ try
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% get TTL times and structure
     try
-        trials = LoadTTL(fname);
+        TTLs = LoadTTL(fname);
     catch
-        trials = [];
+        TTLs = [];
     end
 catch
     close(wb);
