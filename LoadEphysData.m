@@ -235,7 +235,7 @@ try
         %get basic info about recording
         rec.dur=data.MetaTags.DataPoints;
         rec.samplingRate=data.MetaTags.SamplingFreq;
-        rec.bitResolution=0.25; % �8 mV @ 16-Bit => 16000/2^16 = 0.2441 uV
+        rec.bitResolution=0.25; % +/-8 mV @ 16-Bit => 16000/2^16 = 0.2441 uV
         rec.chanID=data.MetaTags.ChannelID;
         if ~sum(cellfun(@(x) contains(x,'ainp1'),{data.ElectrodesInfo.Label}))
             % maybe no Analog channels were recorded but caution: they may be

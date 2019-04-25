@@ -4,9 +4,9 @@ function [paramFStatus,cmdout]=GenerateJRCParamFile(exportFileName,...
 
 %% generate parameter file
 global fDebug_ui; fDebug_ui=1; % so that fAsk =0 (removes warnings and prompts)
-jrc('makeprm',exportFileName,probeFileName);
+jrc('bootstrap',[exportFileName(1:end-4) '.meta']);
 clear global
-paramFileName=[exportFileName(1:end-4) '_' probeFileName(1:end-4) '.prm'];
+paramFileName=[exportFileName(1:end-4) '.prm']; %[exportFileName(1:end-4) '_' probeFileName(1:end-4) '.prm']
 tic;
 accuDelay=0;
 disp('creating parameter file for JRClust')

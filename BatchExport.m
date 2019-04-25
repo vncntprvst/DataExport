@@ -155,7 +155,7 @@ for fileNum=1:size(dataFiles,1)
     cd(recordingName)
     
     %% save data
-    fileID = fopen([recordingName '_export.dat'],'w');
+    fileID = fopen([recordingName '_export.bin'],'w'); %dat
     fwrite(fileID,recordings,'int16');
     fclose(fileID);
     
