@@ -49,7 +49,7 @@ try
             rec.channelMapping=rec.signals.channelInfo.Mapping(ephysChannelsIdx);
             rec.date=rec.setupinfo.date;
             rec.samplingRate=30000; % SampleRateString="30.0 kS/s" Duh
-            rec.bitResolution=0.195;
+            rec.bitResolution=0.195; %(2.45 V)/(2^16)  =  37.4 ?V.  amplifier  gain  of  192 -> 0.195 ?V
             rec.sys='OpenEphys';
             % load timestamps
             rec.timeStamps=readNPY('timestamps.npy');
