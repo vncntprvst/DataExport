@@ -73,7 +73,10 @@ for fileNum=1:size(dataFiles,1)
         recordingName=foldersList{find(cellfun(@(fl) contains(fl,'experiment'),foldersList))-1};
         recordingName=[recordingName '_' expNum '_' recNum];
     elseif contains(dataFiles(fileNum).name,'experiment')
-        folderIdx=regexp(dataFiles(fileNum).folder,'(?<=\w\/).+?');
+        folderIdx=regexp(dataFiles(fileNum).folder,['(?<=\w\' filesep ').+?']);
+        if isempty(folderIdx)
+            folderIdx=1;
+        end
         recordingName=strrep(dataFiles(fileNum).folder(folderIdx(end):end),'-','_');
     else
         recordingName=dataFiles(fileNum).name(1:end-4);
