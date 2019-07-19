@@ -77,21 +77,30 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
         else 
             dataDirListing=dir;
             dataDirListing=dataDirListing(~cellfun('isempty',cellfun(@(x)...
-                strcmp(x(1:end-4),fName(1:end-4)) & strfind(x,'.ns2'),... %assuming TTL recorded at 1kHz
+                strcmp(x(1:end-4),fName(1:end-4)) & strfind(x,'.nev'),... % ns2 -> assuming TTL recorded at 1kHz
                 {dataDirListing.name},'UniformOutput',false)));
             if size({dataDirListing.name},2)==1
                 syncfName=dataDirListing.name;
             else
-                syncfName=strrep(fName,'ns6','ns2');
+                syncfName=strrep(fName,'ns6','ns4'); %'nev' ns4: analog channel recorded at 10kHz
             end
             analogChannel = openNSx([cd filesep syncfName]);
+%               analogChannel = openNEV([cd filesep syncfName]);
         end
-        if sum(cellfun(@(x) contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label}))
-            analogChannels=cellfun(@(x) contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label})
+        % openNEV returns struct('MetaTags',[], 'ElectrodesInfo', [], 'Data', []);
+        % openNSx returns  struct('MetaTags',[],'Data',[], 'RawData', []);
+        % in some other version, openNSx also returned 'ElectrodesInfo'
+%       %send sync TTL to AIN1, which is Channel 129 (AIN2 is 130)
+        TTLchannelID = 130;
+        if sum(ismember([analogChannel.MetaTags.ChannelID], TTLchannelID)) %check that it is present
+            analogChannels=find(ismember([analogChannel.MetaTags.ChannelID], TTLchannelID));
+%         if sum(cellfun(@(x)
+%         contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label}));
+%             analogChannels=cellfun(@(x) contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label})
         elseif sum(cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank}))
             analogChannels=cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank});
         end
-        Trials.continuous=analogChannel.Data(analogChannels,:); %send sync TTL to AINP1
+        Trials.continuous=analogChannel.Data(analogChannels,:); 
         if ~isempty(Trials.continuous) && ~iscell(Trials.continuous)
             [TTLtimes,TTLdur]=ContinuousToTTL(Trials.continuous,'keepfirstonly');
             Trials=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
