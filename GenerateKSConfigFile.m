@@ -1,6 +1,9 @@
 function [paramFStatus,cmdout]=GenerateKSConfigFile(fName, dName, userParams)
 % Creates configuration file for KiloSort
 
+cp master_kilosort.m 
+\configFiles\StandardConfig_MOVEME.m
+
 % read parameters and delete file
 fid  = fopen('GenericKSConfig.txt','r');
 dftParams=fread(fid,'*char')';
@@ -13,9 +16,11 @@ dftParams = regexprep(dftParams,'fpath', ['''' strrep(dName,filesep,[filesep fil
 dftParams = regexprep(dftParams,'fName', ['''' fName  '.dat''']);
 
 % write new params file
+cd(dName)
 fid  = fopen(['config_' fName '.m'],'w');
 fprintf(fid,'%s',dftParams);
 fclose(fid);
+cd ..
 
 cmdout='configuration file generated';
 paramFStatus=1;

@@ -5,7 +5,7 @@ function [TTLtimes,TTLdur]=ContinuousToTTL(continuousTrace,option)
 % plot(continuousTrace(2,:))
 [TTLtimes,TTLdur]=deal(cell(size(continuousTrace,1),1));
 for traceNum=1:size(continuousTrace,1)
-TTLs=logical(continuousTrace(traceNum,:)>rms(continuousTrace(traceNum,:))*5);
+TTLs=logical(continuousTrace(traceNum,:)>rms(continuousTrace(traceNum,:))*20); %Set threshold high enough to be above any bleedthrough from other analog channels
 TTLsProperties=regionprops(TTLs,'Area','PixelIdxList');
 
 %remove artifacts

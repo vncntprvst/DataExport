@@ -77,7 +77,7 @@ else
 end
 
 %% Get file path
-[handles.fname,handles.dname] = uigetfile({'*.dat;*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
+[handles.fname,handles.dname] = uigetfile({'*.dat;*.bin;*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
     '*.*','All Files' },'Select data file to export',dataFolder);
 if handles.fname==0
     handles.fname='';
@@ -214,8 +214,11 @@ else
     end
     %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
     axis('tight');box off;
-    set(handles.Axes_PreProcessedData,'ylim',[-1000,BaseShift...
-        *int32(size(handles.keepChannels,1))+BaseShift]);
+    %Adjust Y axis
+    if size(handles.rawData,1)>1
+        set(handles.Axes_PreProcessedData,'ylim',[-1000,BaseShift...
+            *int32(size(handles.keepChannels,1))+BaseShift]);
+    end
     xlabel(handles.Axes_PreProcessedData,['Processing option: ' preprocOption{1}])
     ylabel(handles.Axes_PreProcessedData,'Pre-processed signal')
     set(handles.Axes_PreProcessedData,'Color','white','FontSize',12,'FontName','calibri');
@@ -1196,6 +1199,9 @@ end
 
 %% saving info about file and export
 % add probe info if not present and available
+if ~isfield(handles.userinfo,'probemap')
+    handles.userinfo.probemap='';
+end
 if ~isfield(handles.rec_info,'probeID') &...
         exist([handles.userinfo.probemap filesep 'ImplantList.mat'],'file')
     try
