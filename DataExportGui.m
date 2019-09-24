@@ -98,7 +98,7 @@ else
     cd(handles.dname);
     
     %% Load data
-    [handles.rec_info,handles.rawData,handles.trials]=LoadEphysData(handles.fname,handles.dname);
+    [handles.rec_info,handles.rawData,handles.spikes,handles.trials]=LoadEphysData(handles.fname,handles.dname);
     
     %% parallel loading
     % parpool(2)
@@ -1259,6 +1259,11 @@ fprintf(fileID,['%21s\t\t %' num2str(length(num2str(handles.keepChannels'))) 's\
 fclose(fileID);
 %     dataExcerpt=PreProcData(foo,30000,{'CAR','all'}); figure;plot(dataExcerpt(15,:))
 
+%% if trials / TTL field exists, export it
+if isfield(handles,'trials')
+        save([handles.rec_info.exportname '_trials'],'-struct','handles','trials','-v7.3');
+end
+
 %% [optional] export a flat dat file
 if get(handles.RB_ExportRaw_dat,'value')
     if isfield(handles.rec_info,'partialRead') && handles.rec_info.partialRead && ...
@@ -1294,7 +1299,6 @@ end
 %% [optional] export spikes
 if get(handles.RB_ExportSpikes_OfflineSort,'value')==1 || get(handles.RB_ExportSpikes_OnlineSort,'value')==1
     save([handles.rec_info.exportname '_spikes'],'spikes','-v7.3');
-    save([handles.rec_info.exportname '_trials'],'-struct','handles','trials','-v7.3');
 end
 
 %% [optional] create .params file for Spyking Circus
