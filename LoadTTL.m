@@ -96,10 +96,10 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
         % openNEV returns struct('MetaTags',[], 'ElectrodesInfo', [], 'Data', []);
         % openNSx returns  struct('MetaTags',[],'Data',[], 'RawData', []);
         % in some other version, openNSx also returned 'ElectrodesInfo'
-%       %send sync TTL to AIN1, which is Channel 129 (AIN2 is 130)
-        TTLchannelID = 130;
-        if sum(ismember([analogChannel.MetaTags.ChannelID], TTLchannelID)) %check that it is present
-            analogChannels=find(ismember([analogChannel.MetaTags.ChannelID], TTLchannelID));
+%       %send sync TTL to AIN1, which is Channel 129. AIN2 is 130. AIN3 is 131
+        TTLchannelIDs = [129, 130, 131];
+        if sum(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs)) %check that it is present
+            analogChannels=find(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs));
 %         if sum(cellfun(@(x)
 %         contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label}));
 %             analogChannels=cellfun(@(x) contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label})
@@ -108,10 +108,12 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
         end
         analogTTLTrace=analogChannel.Data(analogChannels,:); %send sync TTL to AINP1
         if ~isempty(analogTTLTrace) && ~iscell(analogTTLTrace)
-            clear Trials
+            clear TTLs;
             for TTLChan=1:size(analogTTLTrace,1)
                 [TTLtimes,TTLdur]=ContinuousToTTL(analogTTLTrace(TTLChan,:),'keepfirstonly');
-                TTLs{TTLChan}=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
+                if ~isempty(TTLtimes)
+                    TTLs{TTLChan}=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
+                end
             end
             if size(TTLs,2)==1
                 TTLs=TTLs{1};

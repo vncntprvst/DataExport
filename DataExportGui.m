@@ -98,7 +98,7 @@ else
     cd(handles.dname);
     
     %% Load data
-    [handles.rec_info,handles.rawData,handles.spikes,handles.trials]=LoadEphysData(handles.fname,handles.dname);
+    [handles.rec_info,handles.rawData,handles.spikes,handles.syncPulses]=LoadEphysData(handles.fname,handles.dname);
     
     %% parallel loading
     % parpool(2)
@@ -116,7 +116,7 @@ else
     %         end
     %         close(wb);
     %     elseif tasknum == 2
-    %         [handles.rec_info,handles.rawData,handles.trials]=LoadEphysData(handles.fname,handles.dname);
+    %         [handles.rec_info,handles.rawData,handles.syncPulses]=LoadEphysData(handles.fname,handles.dname);
     %     end
     % end
     
@@ -1114,22 +1114,23 @@ if get(handles.RB_ExportSpikes_OfflineSort,'value')==1
     end
 end
 
-%% get clock time (time at which recording started, to sync with TTLs)
-if ~isfield(handles.trials,'startClockTime') | isempty(handles.trials.recordingStartTime)
-    waitbar( 0.7, wb, 'Getting clock time');
-    if strfind(handles.fname,'raw.kwd')
-        % to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
-        % don't use h5readatt(handles.fname,'/recordings/0/','start_time').
-        % That start_time happens earlier (like 20ms before). The difference is
-        % due to the time it takes to open files
-        handles.trials.recordingStartTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
-        handles.trials.recordingStartTime=handles.trials.recordingStartTime(1);    
-    elseif strfind(handles.fname,'continuous')
-        handles.trials.recordingStartTime=handles.rec_info.recordingStartTime;
-    else
-        handles.trials.recordingStartTime=0; %Recording and TTL times already sync'ed
-    end
-end
+%% get clock time of first TTL for synchronization
+% obsolete
+% if ~isfield(handles.syncPulses,'startClockTime') | isempty(handles.syncPulses.recordingStartTime)
+%     waitbar( 0.7, wb, 'Getting sync signal clock time');
+%     if strfind(handles.fname,'raw.kwd')
+%         % to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
+%         % don't use h5readatt(handles.fname,'/recordings/0/','start_time').
+%         % That start_time happens earlier (like 20ms before). The difference is
+%         % due to the time it takes to open files
+%         handles.syncPulses.recordingStartTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
+%         handles.syncPulses.recordingStartTime=handles.syncPulses.recordingStartTime(1);    
+%     elseif strfind(handles.fname,'continuous')
+%         handles.syncPulses.recordingStartTime=handles.rec_info.recordingStartTime;
+%     else
+%         handles.syncPulses.recordingStartTime=0; %Recording and TTL times already sync'ed
+%     end
+% end
 
 %% Export
 % userinfo=UserDirInfo;
@@ -1182,8 +1183,8 @@ set(handles.PB_SpikePanel,'UserData',cd);
 
 %% [optional] adding a TTL Channel to exported data
 if get(handles.CB_AddTTLChannel,'value')
-    if isfield(handles.trials,'continuous')
-        TTL_reSampled = handles.trials.continuous - median(handles.trials.continuous);
+    if isfield(handles.syncPulses,'continuous')
+        TTL_reSampled = handles.syncPulses.continuous - median(handles.syncPulses.continuous);
         TTL_reSampled = resample(double(TTL_reSampled),30,1);
         TTL_reSampled = TTL_reSampled(1:size(handles.rawData,2));
         handles.rawData=[handles.rawData;TTL_reSampled];

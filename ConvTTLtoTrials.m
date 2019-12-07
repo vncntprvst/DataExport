@@ -17,7 +17,7 @@ if length(TTLseq)>10 && mode(TTLseq(1:5))>=250 && mode(TTLseq(1:5))~=mode(TTLseq
     TTLdur=TTLdur(startSeq:end);
     TTLseq=diff(Trials.TTLtimes)./(Trials.samplingRate/1000); % convert to ms
 end
-if sum(TTLseq==mode(TTLseq))/length(TTLseq)*100>50 % stimulations
+if sum(TTLseq==mode(TTLseq))/length(TTLseq)*100>50 % stimulations or sync signal
     % in Stimulation recordings, there are only Pulse onsets, i.e., no
     % double TTL to start, and no TTL to end
     Trials.start=Trials.TTLtimes;

@@ -85,8 +85,8 @@ try
         end
         %% get spike data
         try
-%             cd(['..' filesep '..' filesep ])
-%             cd spikes
+            %             cd(['..' filesep '..' filesep ])
+            %             cd spikes
             spikeFiles = cellfun(@(fileFormat) dir(['..' filesep '..' filesep 'spikes'...
                 filesep '**' filesep fileFormat]),...
                 {'*.npy'},'UniformOutput', false);
@@ -231,18 +231,30 @@ try
         end
         %         data = openNSxNew(fname);
         
+        % Get channel info and spike data
+        eventData=openNEV([cd filesep fname(1:end-3) 'nev']);
+        spikes.clusters=eventData.Data.Spikes.Unit;
+        spikes.electrodes=eventData.Data.Spikes.Electrode;
+        spikes.spikeTimes=eventData.Data.Spikes.TimeStamp;
+        spikes.waveForms=eventData.Data.Spikes.Waveform;
+        
+        if ~isfield(data,'ElectrodesInfo') %depend on file format version
+            data=CatStruct(data,rmfield(eventData,{'Data','MetaTags'}));
+        end
         %     analogData = openNSxNew([fname(1:end-1) '2']);
         %get basic info about recording
         rec.dur=data.MetaTags.DataPoints;
         rec.samplingRate=data.MetaTags.SamplingFreq;
         rec.bitResolution=0.25; % +/-8 mV @ 16-Bit => 16000/2^16 = 0.2441 uV
         rec.chanID=data.MetaTags.ChannelID;
-        if ~sum(cellfun(@(x) contains(x,'ainp1'),{data.ElectrodesInfo.Label}))
+        if ~isfield(data.ElectrodesInfo,'Label') || ...
+                (isfield(data.ElectrodesInfo,'Label') && ...
+                ~sum(cellfun(@(x) contains(x,'ainp1'),{data.ElectrodesInfo.Label})))
             % maybe no Analog channels were recorded but caution: they may be
-            % labeled as any digital channel. Check Connector bancks
+            % labeled as any digital channel. Check Connector banks
             analogChannels=cellfun(@(x) contains(x,'D'),{data.ElectrodesInfo.ConnectorBank});
-            rec.chanID=rec.chanID(~analogChannels);
-            data.Data=data.Data(~analogChannels,:);
+            rec.chanID=rec.chanID(ismember(rec.chanID,find(~analogChannels)));
+            data.Data=data.Data(ismember(rec.chanID,find(~analogChannels)),:);
         end
         rec.numRecChan=size(data.Data,1); %data.MetaTags.ChannelCount;  %number of raw data channels.
         rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match'))...
@@ -263,7 +275,8 @@ try
         TTLs = [];
     end
 catch
-    close(wb);
+    %close(wb);
+    disp('Failed loading ephys data');
 end
 close(wb);
 end

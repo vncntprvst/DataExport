@@ -44,8 +44,16 @@ for fileNum=1:size(dataFiles,1)
         [recInfo,recordings,spikes,TTLdata] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
         switch size(TTLdata,2)
             case 1
-                vSyncTTL=TTLdata;
-                clear trialTTL
+                if isfield(TTLdata,'TTLChannel')
+                    switch TTLdata.TTLChannel
+                        case 1
+                            trialTTL=TTLdata;
+                            vSyncTTL=0;
+                        case 2
+                            vSyncTTL=TTLdata;
+                            clear trialTTL
+                    end
+                end
             case 2
                 trialTTL=TTLdata{1}; %might be laser stim or behavior
                 vSyncTTL=TTLdata{2};
@@ -81,71 +89,60 @@ for fileNum=1:size(dataFiles,1)
     else
         recordingName=dataFiles(fileNum).name(1:end-4);
     end
-    %     continue
     
     %% get video sync TLLs
-    %     check if there's a corresponding video file
-%     nameCheck=cellfun(@(vflnm) sum(ismember(recordingName,vflnm(1:end-4))),...
-%         {videoFiles.name});
-%     if logical(find(nameCheck>length(recordingName)*0.9,1))
-%         try
-%             correspondingVideoFileName= videoFiles(nameCheck==max(nameCheck)).name(1:end-4);
-%         catch
-%             correspondingVideoFileName=recordingName;
-%         end
-%     else
-%     end
-    try
-        cd(vSyncTTLDir); dirListing=dir(vSyncTTLDir);
-        % see LoadTTL - change function if needed
-        if contains(dataFiles(fileNum).name, 'continuous.dat')
-            cd(['..' filesep '..' filesep 'events' filesep 'Rhythm_FPGA-100.0' filesep 'TTL_1']);
-            videoSyncTTLFileName='channel_states.npy';
-        elseif contains(dataFiles(fileNum).name, 'raw.kwd')
-            videoSyncTTLFileName=dirListing(cellfun(@(x) contains(x,'kwe'),...
-                {dirListing.name})).name;
-        end
-        frameCaptureTime=GetTTLFrameTime(videoSyncTTLFileName); %timestamps are actually sample count
-        % convert to seconds dividing by sample rate
-        %             cd(exportDir); cd (['..' filesep 'WhiskerTracking'])
-        %         save([recordingName '_VideoFrameTimes'],'frameCaptureTime')
-        %         continue;
-        %             [recInfo,data,trials] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
-    catch
-        %  if no vSyncTTL channel, then video sync was likely done with
-        % flashing a LED. Need to first export TTLsync csv using Bonsai script.
-        % Folder should then have two csv file for each video file:
-        % Frame times and _TTLOnset
-        videoFrameTimeFileName=dirListing(cellfun(@(fName) ...
-            strcmp(regexprep(fName,'\d+\-\d+',''),[recordingName '_HSCam.csv']),...
-            {dirListing.name})).name;
-        if ~isempty(videoFrameTimeFileName)
-            videoFrameTimes=ReadVideoFrameTimes(videoFrameTimeFileName);
-            % synchronize based on trial structure
-            try
-                vSyncDelay=mean(vSyncTTL.TTLtimes/vSyncTTL.samplingRate*1000-...
-                    videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(...
-                    [true;diff(videoFrameTimes.TTLFrames)>1]))');
-            catch % different number of TTLs. Possibly "laser" sync. Assuming first 20 correct
-                videoIndexing=[true;diff(videoFrameTimes.TTLFrames)>1];
-                videoIndexing(max(find(videoIndexing,20))+1:end)=false;
-                vSyncDelay=mean(vSyncTTL.TTLtimes(1:20)/vSyncTTL.samplingRate*1000-...
-                    videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(...
-                    videoIndexing))');
+    if ~exist('vSyncTTL','var') && isempty(vSyncTTL)
+        try % this should already be performed by LoadTTL, called from LoadEphysData above
+            cd(vSyncTTLDir); dirListing=dir(vSyncTTLDir);
+            % see LoadTTL - change function if needed
+            if contains(dataFiles(fileNum).name, 'continuous.dat')
+                cd(['..' filesep '..' filesep 'events' filesep 'Rhythm_FPGA-100.0' filesep 'TTL_1']);
+                videoSyncTTLFileName='channel_states.npy';
+            elseif contains(dataFiles(fileNum).name, 'raw.kwd')
+                videoSyncTTLFileName=dirListing(cellfun(@(x) contains(x,'kwe'),...
+                    {dirListing.name})).name;
             end
-            % keep an array of timestamp (converted into sample count)
-            % if video started before ephys recording (typical case)
-            % then early times and thus frame count will be negative
-            videoFrameTimes.frameTime_ms=videoFrameTimes.frameTime_ms+vSyncDelay;
-            frameCaptureTime=int64(videoFrameTimes.frameTime_ms'*recInfo.samplingRate/1000);
-            % second row keeps TTL pulse indices
-            frameCaptureTime(2,:)=zeros(1,length(frameCaptureTime));
-            frameCaptureTime(2,videoFrameTimes.TTLFrames)=1;
-        else
-            frameCaptureTime=[];
+            frameCaptureTime=GetTTLFrameTime(videoSyncTTLFileName); %timestamps are actually sample count
+            % convert to seconds dividing by sample rate
+            %             cd(exportDir); cd (['..' filesep 'WhiskerTracking'])
+            %         save([recordingName '_VideoFrameTimes'],'frameCaptureTime')
+            %         continue;
+            %             [recInfo,data,trials] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
+        catch
+            %  if no vSyncTTL channel, then video sync was likely done with
+            % flashing a LED. Need to first export TTLsync csv using Bonsai script.
+            % Folder should then have two csv file for each video file:
+            % Frame times and _TTLOnset
+            videoFrameTimeFileName=dirListing(cellfun(@(fName) ...
+                strcmp(regexprep(fName,'\d+\-\d+',''),[recordingName '_HSCam.csv']),...
+                {dirListing.name})).name;
+            if ~isempty(videoFrameTimeFileName)
+                videoFrameTimes=ReadVideoFrameTimes(videoFrameTimeFileName);
+                % synchronize based on trial structure
+                try
+                    vSyncDelay=mean(vSyncTTL.TTLtimes/vSyncTTL.samplingRate*1000-...
+                        videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(...
+                        [true;diff(videoFrameTimes.TTLFrames)>1]))');
+                catch % different number of TTLs. Possibly "laser" sync. Assuming first 20 correct
+                    videoIndexing=[true;diff(videoFrameTimes.TTLFrames)>1];
+                    videoIndexing(max(find(videoIndexing,20))+1:end)=false;
+                    vSyncDelay=mean(vSyncTTL.TTLtimes(1:20)/vSyncTTL.samplingRate*1000-...
+                        videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(...
+                        videoIndexing))');
+                end
+                % keep an array of timestamp (converted into sample count)
+                % if video started before ephys recording (typical case)
+                % then early times and thus frame count will be negative
+                videoFrameTimes.frameTime_ms=videoFrameTimes.frameTime_ms+vSyncDelay;
+                frameCaptureTime=int64(videoFrameTimes.frameTime_ms'*recInfo.samplingRate/1000);
+                % second row keeps TTL pulse indices
+                frameCaptureTime(2,:)=zeros(1,length(frameCaptureTime));
+                frameCaptureTime(2,videoFrameTimes.TTLFrames)=1;
+            else
+                frameCaptureTime=[];
+            end
         end
     end
-    
     %% check that recordingName doesn't have special characters
     recordingName=regexprep(recordingName,'\W','');
     allRecInfo{fileNum}.recordingName=recordingName;
@@ -168,7 +165,7 @@ for fileNum=1:size(dataFiles,1)
     end
     
     %% save trial/stim TTLs
-    if exist('trialTTL','var') && ~isempty(trialTTL.start)
+    if exist('trialTTL','var') && ~isempty(trialTTL) && ~isempty(trialTTL.start)
         fileID = fopen([recordingName '_trialTTLs.dat'],'w');
         fwrite(fileID,[trialTTL.start(:,2)';trialTTL.end(:,2)'],'int32'); %ms resolution
         fclose(fileID);
@@ -183,7 +180,7 @@ for fileNum=1:size(dataFiles,1)
         if isfield(vSyncTTL,'start') && ~isempty(vSyncTTL.start)
             if size(vSyncTTL.start,1)==1 && size(vSyncTTL.start,2)>size(vSyncTTL.start,1)
                 fwrite(fileID,[vSyncTTL.start;vSyncTTL.end],'int32');
-            else
+            else %we want vertical arrays
                 fwrite(fileID,[vSyncTTL.start(:,2)';vSyncTTL.end(:,2)'],'int32');
             end
         else
