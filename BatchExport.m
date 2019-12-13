@@ -148,7 +148,7 @@ for fileNum=1:size(dataFiles,1)
     allRecInfo{fileNum}.recordingName=recordingName;
     
     cd(exportDir)
-    if ~isdir(recordingName)
+    if ~isfolder(recordingName)
     %create export directory
         mkdir(recordingName);
     end
@@ -166,12 +166,18 @@ for fileNum=1:size(dataFiles,1)
     
     %% save trial/stim TTLs
     if exist('trialTTL','var') && ~isempty(trialTTL) && ~isempty(trialTTL.start)
-        fileID = fopen([recordingName '_trialTTLs.dat'],'w');
-        fwrite(fileID,[trialTTL.start(:,2)';trialTTL.end(:,2)'],'int32'); %ms resolution
+        if size(trialTTL.start,1)<size(trialTTL.start,2) %swap dimensions
+            trialTTL.start=trialTTL.start';
+            trialTTL.end=trialTTL.end';
+        end
+        fileID = fopen([recordingName '_TTLs.dat'],'w');
+        fwrite(fileID,[trialTTL.start(:,2);trialTTL.end(:,2)],'int32'); %ms resolution
         fclose(fileID);
         %save timestamps in seconds units as .csv
-        dlmwrite([recordingName '_trialTS.csv'],trialTTL.start(:,2)/1000,...
+        dlmwrite([recordingName '_export_trial.csv'],trialTTL.start(:,2)/1000,...
             'delimiter', ',', 'precision', '%5.11f');
+        times=trialTTL.start(:,2)/1000;
+        save([recordingName '_export_trial.mat'],'times');
     end
     
     %% save video sync TTL data
