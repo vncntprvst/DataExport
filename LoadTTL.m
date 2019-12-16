@@ -56,10 +56,10 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
     %         500 S/s: Records at 500 samples/second. Saved as NS1 file.
     %         1 kS/s: Records at 1k samples/second. Saved as NS2 file.
     %         2 kS/s: Records at 2k samples/second. Saved as NS3 file.
-    %         10 kS/s: Records at 10k samples/second. Saved as NS4 file.
+    %         10 kS/s: Records at 10k samples/second. Saved as NS4 file. e.g., TTLs 
     %         30 kS/s: Records at 30k samples/second. Saved as NS5 file.
     %         Raw: Records the raw data at 30k samples/second. Saved as NS6 file.
-    
+    TTLchannelIDs = [129, 130, 131];
     if contains(fName,'.nev')
         %         NEV=openNEV('read', [dirName filesep fName]);
         load([fName(1:end-3), 'mat'])
@@ -81,23 +81,24 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
         if contains(fName,filesep)
             analogChannel = openNSx(fName);
         else 
-            dataDirListing=dir;
-            dataDirListing=dataDirListing(~cellfun('isempty',cellfun(@(x)...
-                strcmp(x(1:end-4),fName(1:end-4)) & strfind(x,'.nev'),... % ns2 -> assuming TTL recorded at 1kHz
-                {dataDirListing.name},'UniformOutput',false)));
-            if size({dataDirListing.name},2)==1
-                syncfName=dataDirListing.name;
-            else
-                syncfName=strrep(fName,'ns6','ns4'); %'nev' ns4: analog channel recorded at 10kHz
-            end
-            analogChannel = openNSx([cd filesep syncfName]);
+%             dataDirListing=dir;
+%             dataDirListing=dataDirListing(~cellfun('isempty',cellfun(@(x)...
+%                 strcmp(x(1:end-4),fName(1:end-4)) & strfind(x,'.nev'),... % ns2 -> assuming TTL recorded at 1kHz
+%                 {dataDirListing.name},'UniformOutput',false)));
+%             if size({dataDirListing.name},2)==1
+%                 syncfName=dataDirListing.name;
+%             elseif size({dataDirListing.name},2)>1
+%             else
+              syncfName=strrep(fName,'ns6','ns4'); %'nev' ns4: analog channel recorded at 10kHz
+%             end
+              analogChannel = openNSx([cd filesep syncfName]);
 %               analogChannel = openNEV([cd filesep syncfName]);
         end
         % openNEV returns struct('MetaTags',[], 'ElectrodesInfo', [], 'Data', []);
         % openNSx returns  struct('MetaTags',[],'Data',[], 'RawData', []);
         % in some other version, openNSx also returned 'ElectrodesInfo'
 %       %send sync TTL to AIN1, which is Channel 129. AIN2 is 130. AIN3 is 131
-        TTLchannelIDs = [129, 130, 131];
+        
         if sum(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs)) %check that it is present
             analogChannels=find(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs));
 %         if sum(cellfun(@(x)
