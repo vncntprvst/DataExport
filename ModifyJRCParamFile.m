@@ -1,28 +1,29 @@
-function [paramFStatus,cmdout]=GenerateJRCParamFile(exportFileName,inputParams)
+function [paramFStatus,cmdout]=ModifyJRCParamFile(fileName,generateFile,inputParams)
 
-%% generate parameter file
-% -noconfirm removes warnings and prompts
-jrc('bootstrap',[exportFileName '.meta'],'-noconfirm','-advanced');
-% clear global
-paramFileName=[exportFileName '.prm']; %[exportFileName(1:end-4) '_' probeFileName(1:end-4) '.prm']
-tic;
-accuDelay=0;
-disp('creating parameter file for JRClust')
-while ~exist(paramFileName,'file')
-    timeElapsed=toc;
-    if timeElapsed-accuDelay>1
-        accuDelay=timeElapsed;
-        fprintf('%s ', '*');
-    end
-    if timeElapsed>10
-        fprintf('\nFailed to generate parameter file\n');
-        break
+paramFileName=[fileName '.prm'];
+
+if generateFile
+    %% generate parameter file
+    jrc('bootstrap',[fileName '.meta'],'-noconfirm','-advanced'); % -noconfirm removes warnings and prompts
+    tic;
+    accuDelay=0;
+    disp('creating parameter file for JRClust')
+    while ~exist(paramFileName,'file')
+        timeElapsed=toc;
+        if timeElapsed-accuDelay>1
+            accuDelay=timeElapsed;
+            fprintf('%s ', '*');
+        end
+        if timeElapsed>10
+            fprintf('\nFailed to generate parameter file\n');
+            break
+        end
     end
 end
 
 %% replace parameters with user values (if any)
 if exist('inputParams','var') && ~isempty(inputParams)
-
+    
     % read parameters and delete file
     fid  = fopen(paramFileName,'r');
     paramsContent=fread(fid,'*char')';
