@@ -24,20 +24,22 @@ end
 videoFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.mp4','*.avi'},'UniformOutput', false);
 videoFiles=vertcat(videoFiles{~cellfun('isempty',videoFiles)});
+videoFiles=videoFiles(~cellfun(@(flnm) contains(flnm,{'WhiskerTracking'}),... %don't include WhiskerTracking folder
+    {videoFiles.folder})); %by filename
 allRecInfo=cell(size(dataFiles,1),1);
 
 %% find / ask for probe file when exporting and copy to export folder
 probeFile = cellfun(@(fileFormat) dir([cd filesep 'SpikeSorting' filesep fileFormat]),...
-    {'*Probe*'},'UniformOutput', false); 
+    {'*Probe*'},'UniformOutput', false);
 if ~isempty(probeFile{:})
     probeFileName=probeFile{1, 1}.name;
     probePathName=probeFile{1, 1}.folder;
 else
     [probeFileName,probePathName] = uigetfile('*.mat','Select the .mat probe file',...
-    '/home/wanglab/Code/EphysDataProc/DataExport/probemaps');
+        '/home/wanglab/Code/EphysDataProc/DataExport/probemaps');
     copyfile(fullfile(probePathName,probeFileName),fullfile(cd,'SpikeSorting',probeFileName));
 end
-    
+
 %% export each file
 for fileNum=1:size(dataFiles,1)
     try
@@ -149,67 +151,83 @@ for fileNum=1:size(dataFiles,1)
     
     cd(exportDir)
     if ~isfolder(recordingName)
-    %create export directory
+        %create export directory
         mkdir(recordingName);
     end
     cd(recordingName)
+    recInfo.export.directory=fullfile(exportDir,recordingName);
     
     %% save data
 %     fileID = fopen([recordingName '_export.bin'],'w'); %dat
 %     fwrite(fileID,recordings,'int16');
 %     fclose(fileID);
+    recInfo.export.binFile=[recordingName '_export.bin'];
     
     %% save spikes
-%     if ~isempty(spikes.clusters)
+    if ~isempty(spikes.clusters)
 %         save([recordingName '_spikes'],'-struct','spikes');
-%     end
+        recInfo.export.spikesFile=[recordingName '_spikes.mat'];
+    end
     
-    %% save trial/stim TTLs
-%     if exist('trialTTL','var') && ~isempty(trialTTL) && ~isempty(trialTTL.start)
-%         if size(trialTTL.start,1)<size(trialTTL.start,2) %swap dimensions
-%             trialTTL.start=trialTTL.start';
-%             trialTTL.end=trialTTL.end';
-%         end
-%         fileID = fopen([recordingName '_TTLs.dat'],'w');
-%         fwrite(fileID,[trialTTL.start(:,2);trialTTL.end(:,2)],'int32'); %ms resolution
-%         fclose(fileID);
-%         %save timestamps in seconds units as .csv
-%         dlmwrite([recordingName '_export_trial.csv'],trialTTL.start(:,2)/1000,...
-%             'delimiter', ',', 'precision', '%5.11f');
+    %% save trial/stim TTLs in ms resolution
+    if exist('trialTTL','var') && ~isempty(trialTTL) && ~isempty(trialTTL.start)
+        if size(trialTTL.start,1)<size(trialTTL.start,2) %swap dimensions
+            trialTTL.start=trialTTL.start';
+            trialTTL.end=trialTTL.end';
+        end
+        % save binary file in ms units
+        fileID = fopen([recordingName '_TTLs.dat'],'w');
+%         TTLtimes=nan(2,size(trialTTL.start,1));
+%         TTLtimes(1,:)=[round(trialTTL.start(1,1)/trialTTL.samplingRate*1000);...
+%             round(trialTTL.start(1,1)/trialTTL.samplingRate*1000)+...
+%             cumsum(round(diff(trialTTL.start(:,1)/trialTTL.samplingRate*1000)))]'; %exact rounding
+%         TTLtimes(2,:)=[round(trialTTL.end(1,1)/trialTTL.samplingRate*1000);...
+%             round(trialTTL.end(1,1)/trialTTL.samplingRate*1000)+...
+%             cumsum(round(diff(trialTTL.end(:,1)/trialTTL.samplingRate*1000)))]'; %exact rounding
+%         fwrite(fileID,TTLtimes,'int32'); % [trialTTL.start(:,2);trialTTL.end(:,2)].1 ms resolution
+        fwrite(fileID,[trialTTL.start(:,2)';trialTTL.end(:,2)'],'double');
+        fclose(fileID);
+        %save timestamps in seconds units as .csv
+        dlmwrite([recordingName '_export_trial.csv'],trialTTL.start(:,2)/1000,...
+            'delimiter', ',', 'precision', '%5.11f');
+        %save timestamps in seconds units as .mat (not required)
 %         times=trialTTL.start(:,2)/1000;
 %         save([recordingName '_export_trial.mat'],'times');
-%     end
-     
-    %% save video sync TTL data
-    if exist('vSyncTTL','var') 
-        fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
-        if isfield(vSyncTTL,'start') && ~isempty(vSyncTTL.start)
-            if size(vSyncTTL.start,2)>size(vSyncTTL.start,1) %we want vertical arrays
-                vSyncTTL.start=vSyncTTL.start'; 
-%                 vSyncTTL.end=vSyncTTL.end';
-            end
-            TTLtimes=vSyncTTL.start(:,size(vSyncTTL.start,2));
-            TTLtimes=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding 
-            fwrite(fileID,TTLtimes,'int32'); % just save one single column 
-        else
-            fwrite(fileID,vSyncTTL,'int32');
-        end
-        fclose(fileID);
+%         recInfo.export.TTLs={[recordingName '_TTLs.dat'];[recordingName '_export_trial.csv'];[recordingName '_export_trial.mat']};
     end
-
+    
+    
+    %% save video sync TTL data, in ms resolution
+    if exist('vSyncTTL','var') || (exist('frameCaptureTime','var') && ~isempty(frameCaptureTime))
+%         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
+%         if exist('vSyncTTL','var') && isfield(vSyncTTL,'start') && ~isempty(vSyncTTL.start)
+%             if size(vSyncTTL.start,2)>size(vSyncTTL.start,1) %we want vertical arrays
+%                 vSyncTTL.start=vSyncTTL.start';
+%             end
+%             TTLtimes=vSyncTTL.start(:,size(vSyncTTL.start,2));
+%             frameCaptureTime=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding
+%         elseif exist('vSyncTTL','var')
+%             frameCaptureTime=vSyncTTL;
+%         elseif exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
+%             % save video frame time file (vSync TTLs prefered method)
+%             frameCaptureTime=frameCaptureTime(1,frameCaptureTime(2,:)<0)';
+%             frameCaptureTime=[round(frameCaptureTime(1));round(frameCaptureTime(1))+cumsum(round(diff(frameCaptureTime)))];
+%         end
+%         fwrite(fileID,frameCaptureTime,'int32'); % just save one single column
+%         fclose(fileID);
+        recInfo.export.vSync=[recordingName '_vSyncTTLs.dat'];
+    end
+    
+    %% try to find likely companion video file
+    fileComp=cellfun(@(vfileName) intersect(regexp(dataFiles(fileNum).name,'[a-zA-Z0-9]+','match'),...
+        regexp(vfileName,'[a-zA-Z0-9]+','match'),'stable'), {videoFiles.name},'un',0);
+    fileMatchIdx=cellfun(@numel,fileComp)==max(cellfun(@numel,fileComp));
+    if sum(fileMatchIdx)==1
+        %likely match
+        recInfo.likelyVideoFile=videoFiles(fileMatchIdx).name;
+    end
     %% save data info
-    save([recordingName '_recInfo'],'recInfo','-v7.3');
-    
-    %% save video frame time file (not needed if vSync TTLs)
-%     cd ..
-%     mkdir('VideoTracking');
-%     cd ('VideoTracking')
-    if exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
-        fileID = fopen([recordingName '_VideoFrameTimes.dat'],'w');
-        fwrite(fileID,frameCaptureTime,'double');
-        fclose(fileID);
-    end
-    
+%     save([recordingName '_recInfo'],'recInfo','-v7.3');
 end
 cd ..
 

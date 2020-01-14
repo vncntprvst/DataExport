@@ -3,7 +3,9 @@ wb = waitbar( 0, 'Reading Data File...' );
 cd(dname);
 spikes=struct('clusters',[],'electrodes',[],'spikeTimes',[],'waveForms',[],'metadata',[]);
 try
-    rec.dirBranch=regexp(strrep(dname,'-','_'),['\' filesep '\w+'],'match');
+    dirBranch=regexp(strrep(dname,'-','_'),['\' filesep '\w+'],'match');
+    rec.dirName=dname;
+    rec.fileName=fname;
     disp(['loading ' dname fname]);
     if contains(fname,'.bin')
         %% Binary file from Intan/Paul's Julia interface
@@ -190,7 +192,7 @@ try
         %get experiment info from note.txt file
         fileID = fopen('note.txt');
         noteInfo=textscan(fileID,'%s');
-        rec.dirBranch{end}=[rec.dirBranch{end}(1) noteInfo{1}{:} '_' rec.dirBranch{end}(2:end)];
+        dirBranch{end}=[dirBranch{end}(1) noteInfo{1}{:} '_' dirBranch{end}(2:end)];
         %get data info from Analog file
         analogFile=dirlisting(~cellfun('isempty',cellfun(@(x) contains(x,'Analog'),dirlisting,'UniformOutput',false)));
         analogData=readNexFile(analogFile{:});
