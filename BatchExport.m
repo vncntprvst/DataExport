@@ -158,14 +158,14 @@ for fileNum=1:size(dataFiles,1)
     recInfo.export.directory=fullfile(exportDir,recordingName);
     
     %% save data
-%     fileID = fopen([recordingName '_export.bin'],'w'); %dat
-%     fwrite(fileID,recordings,'int16');
-%     fclose(fileID);
+    fileID = fopen([recordingName '_export.bin'],'w'); %dat
+    fwrite(fileID,recordings,'int16');
+    fclose(fileID);
     recInfo.export.binFile=[recordingName '_export.bin'];
     
     %% save spikes
     if ~isempty(spikes.clusters)
-%         save([recordingName '_spikes'],'-struct','spikes');
+        save([recordingName '_spikes'],'-struct','spikes');
         recInfo.export.spikesFile=[recordingName '_spikes.mat'];
     end
     
@@ -199,22 +199,22 @@ for fileNum=1:size(dataFiles,1)
     
     %% save video sync TTL data, in ms resolution
     if exist('vSyncTTL','var') || (exist('frameCaptureTime','var') && ~isempty(frameCaptureTime))
-%         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
-%         if exist('vSyncTTL','var') && isfield(vSyncTTL,'start') && ~isempty(vSyncTTL.start)
-%             if size(vSyncTTL.start,2)>size(vSyncTTL.start,1) %we want vertical arrays
-%                 vSyncTTL.start=vSyncTTL.start';
-%             end
-%             TTLtimes=vSyncTTL.start(:,size(vSyncTTL.start,2));
-%             frameCaptureTime=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding
-%         elseif exist('vSyncTTL','var')
-%             frameCaptureTime=vSyncTTL;
-%         elseif exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
-%             % save video frame time file (vSync TTLs prefered method)
-%             frameCaptureTime=frameCaptureTime(1,frameCaptureTime(2,:)<0)';
-%             frameCaptureTime=[round(frameCaptureTime(1));round(frameCaptureTime(1))+cumsum(round(diff(frameCaptureTime)))];
-%         end
-%         fwrite(fileID,frameCaptureTime,'int32'); % just save one single column
-%         fclose(fileID);
+        fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
+        if exist('vSyncTTL','var') && isfield(vSyncTTL,'start') && ~isempty(vSyncTTL.start)
+            if size(vSyncTTL.start,2)>size(vSyncTTL.start,1) %we want vertical arrays
+                vSyncTTL.start=vSyncTTL.start';
+            end
+            TTLtimes=vSyncTTL.start(:,size(vSyncTTL.start,2));
+            frameCaptureTime=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding
+        elseif exist('vSyncTTL','var')
+            frameCaptureTime=vSyncTTL;
+        elseif exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
+            % save video frame time file (vSync TTLs prefered method)
+            frameCaptureTime=frameCaptureTime(1,frameCaptureTime(2,:)<0)';
+            frameCaptureTime=[round(frameCaptureTime(1));round(frameCaptureTime(1))+cumsum(round(diff(frameCaptureTime)))];
+        end
+        fwrite(fileID,frameCaptureTime,'int32'); % just save one single column
+        fclose(fileID);
         recInfo.export.vSync=[recordingName '_vSyncTTLs.dat'];
     end
     
@@ -227,7 +227,7 @@ for fileNum=1:size(dataFiles,1)
         recInfo.likelyVideoFile=videoFiles(fileMatchIdx).name;
     end
     %% save data info
-%     save([recordingName '_recInfo'],'recInfo','-v7.3');
+    save([recordingName '_recInfo'],'recInfo','-v7.3');
 end
 cd ..
 

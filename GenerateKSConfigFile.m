@@ -1,26 +1,34 @@
-function [paramFStatus,cmdout]=GenerateKSConfigFile(fName, dName, userParams)
+function [paramFStatus,cmdout,configFName]=GenerateKSConfigFile(fName, fDir, userParams)
 % Creates configuration file for KiloSort
+KS2dir='V:\Code\SpikeSorting\Kilosort2';
+configFName=[fName '_KSconfigFile.m'];
+copyfile(fullfile(KS2dir,'configFiles','StandardConfig_MOVEME.m'),...
+    fullfile(fDir,configFName));
 
-cp master_kilosort.m 
-\configFiles\StandardConfig_MOVEME.m
+%% read parameters and delete file
+fileID  = fopen(fullfile(fDir,configFName),'r');
+dftParams=fread(fileID,'*char')';
+fclose(fileID);
 
-% read parameters and delete file
-fid  = fopen('GenericKSConfig.txt','r');
-dftParams=fread(fid,'*char')';
-fclose(fid);
+%% replace parameters with user values
+dftParams = regexprep(dftParams,'(?<=ops.chanMap\s+=\s'')\S+?(?='';)', strrep(userParams.chanMap,filesep,[filesep filesep]));
+dftParams = regexprep(dftParams,'(?<=ops.fs\s+=\s)\S+(?=;)', strtrim(sprintf('%d ',userParams.fs)));
+dftParams = regexprep(dftParams,'(?<=ops.GPU\s+=\s)\S(?=;)', strtrim(sprintf('%d ',userParams.useGPU)));
 
-% replace parameters with user values
+%% write new params file
+fileID  = fopen(fullfile(fDir,configFName),'w');
+fprintf(fileID,'%% the raw data binary file is in this folder\r');
+fprintf(fileID,'ops.exportDir = ''%s'';\r\r', userParams.exportDir); 
+fprintf(fileID,'%% path to temporary binary file (same size as data, should be on fast SSD)\r');
+fprintf(fileID,'ops.tempDir = ''%s'';\r\r', userParams.tempDir); 
+fprintf(fileID,'%% name of binary file\r');
+fprintf(fileID,'ops.fbinary = ''%s'';\r\r', userParams.fbinary); 
+fprintf(fileID,'%% total number of channels in your recording\r');
+fprintf(fileID,'ops.NchanTOT = %d;\r\r',userParams.NchanTOT);
+fprintf(fileID,'%% time range to sort\r');
+fprintf(fileID,'ops.trange = [%d %d];\r\r',userParams.trange(1),userParams.trange(end));
+fprintf(fileID,'%s',dftParams);
+fclose(fileID);
 
-dftParams = regexprep(dftParams,'(?<=ops.GPU\s+=\s)useGPU(?=;)', userParams.useGPU);
-dftParams = regexprep(dftParams,'fpath', ['''' strrep(dName,filesep,[filesep filesep]) '''']); % format directory name
-dftParams = regexprep(dftParams,'fName', ['''' fName  '.dat''']);
-
-% write new params file
-cd(dName)
-fid  = fopen(['config_' fName '.m'],'w');
-fprintf(fid,'%s',dftParams);
-fclose(fid);
-cd ..
-
-cmdout='configuration file generated';
-paramFStatus=1;
+%% confirmation output
+paramFStatus=1; cmdout='configuration file generated';
