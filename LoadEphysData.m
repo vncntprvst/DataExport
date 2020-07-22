@@ -1,5 +1,6 @@
 function [rec,data,spikes,TTLs] = LoadEphysData(fname,dname)
 wb = waitbar( 0, 'Reading Data File...' );
+currDir=cd;
 cd(dname);
 spikes=struct('clusters',[],'electrodes',[],'spikeTimes',[],'waveForms',[],'metadata',[]);
 try
@@ -48,7 +49,11 @@ try
                 '..' filesep '..' filesep 'settings.xml']);
             ephysChannelsIdx=cellfun(@(x) str2double(x), rec.signals.channelInfo.channelGain)>0.1;
             rec.numRecChan=rec.signals.channelInfo.channelNumber(ephysChannelsIdx)+1;
-            rec.channelMapping=rec.signals.channelInfo.Mapping(ephysChannelsIdx);
+            if isfield(rec.signals.channelInfo,'Mapping')
+                rec.channelMapping=rec.signals.channelInfo.Mapping(ephysChannelsIdx);
+            else %no mapping module
+                rec.channelMapping=rec.signals.channelInfo.channelNumber(ephysChannelsIdx);
+            end
             rec.date=rec.setupinfo.date;
             rec.samplingRate=30000; % SampleRateString="30.0 kS/s" Duh
             rec.bitResolution=0.195; %(2.45 V)/(2^16)  =  37.4 ?V.  amplifier  gain  of  192 -> 0.195 ?V
@@ -249,14 +254,15 @@ try
         rec.samplingRate=data.MetaTags.SamplingFreq;
         rec.bitResolution=0.25; % +/-8 mV @ 16-Bit => 16000/2^16 = 0.2441 uV
         rec.chanID=data.MetaTags.ChannelID;
+        [~,rec.chanList]=sort(rec.chanID); [~,rec.chanList]=sort(rec.chanList); 
         if ~isfield(data.ElectrodesInfo,'Label') || ...
                 (isfield(data.ElectrodesInfo,'Label') && ...
                 ~sum(cellfun(@(x) contains(x,'ainp1'),{data.ElectrodesInfo.Label})))
             % maybe no Analog channels were recorded but caution: they may be
             % labeled as any digital channel. Check Connector banks
             analogChannels=cellfun(@(x) contains(x,'D'),{data.ElectrodesInfo.ConnectorBank});
-            rec.chanID=rec.chanID(ismember(rec.chanID,find(~analogChannels)));
-            data.Data=data.Data(ismember(rec.chanID,find(~analogChannels)),:);
+            rec.chanID=rec.chanID(ismember(rec.chanList,find(~analogChannels)));
+            data.Data=data.Data(ismember(rec.chanList,find(~analogChannels)),:);
         end
         rec.numRecChan=size(data.Data,1); %data.MetaTags.ChannelCount;  %number of raw data channels.
         rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match'))...
@@ -280,5 +286,6 @@ catch
     %close(wb);
     disp('Failed loading ephys data');
 end
+cd(currDir);
 close(wb);
 end

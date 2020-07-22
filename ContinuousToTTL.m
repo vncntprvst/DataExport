@@ -1,25 +1,36 @@
-function [TTLtimes,TTLdur]=ContinuousToTTL(continuousTrace,option)
+function [TTLtimes,TTLdur]=ContinuousToTTL(continuousTrace,samplingRate,option)
 
-% figure; hold on 
-% plot(continuousTrace(1,:))
-% plot(continuousTrace(2,:))
+
 [TTLtimes,TTLdur]=deal(cell(size(continuousTrace,1),1));
 for traceNum=1:size(continuousTrace,1)
 TTLs=logical(continuousTrace(traceNum,:)>rms(continuousTrace(traceNum,:))*20); %Set threshold high enough to be above any bleedthrough from other analog channels
 TTLsProperties=regionprops(TTLs,'Area','PixelIdxList');
 
-%remove artifacts
+%% remove artifacts
+% artifacts defined as peaks < 1ms (for sampling rate > 1kHz) or <= 1ms for
+% 1kHz sampling rate. Also remove peaks > pulse duration + 1ms.
 pulseDur=mode([TTLsProperties.Area]);
-TTLsProperties=TTLsProperties([TTLsProperties.Area]>=max([(pulseDur-1) 2]) & [TTLsProperties.Area]<=(pulseDur+1));
+sF=samplingRate/1000;
+if samplingRate<=1000
+    TTLsProperties=TTLsProperties([TTLsProperties.Area]>=max([(pulseDur-(1*sF)) 1*sF]) & [TTLsProperties.Area]<=(pulseDur+(1*sF)));
+else
+    TTLsProperties=TTLsProperties([TTLsProperties.Area]>max([(pulseDur-(1*sF)) 1*sF]) & [TTLsProperties.Area]<=(pulseDur+(1*sF)));
+end    
 TTLtimes{traceNum}=cellfun(@(timeIndex) timeIndex(1), {TTLsProperties.PixelIdxList});
 TTLdur{traceNum}=[TTLsProperties.Area];
-% plot(TTLtimes{traceNum},ones(length(TTLtimes{traceNum}))*rms(continuousTrace(traceNum,:))*5,'d')
 end
 
 if strcmp(option,'keepfirstonly')
     TTLtimes=TTLtimes{1};
     TTLdur=TTLdur{1};
 end
+
+if false
+figure; hold on 
+plot(continuousTrace(1,:)); % plot(continuousTrace(2,:))
+plot(TTLtimes,ones(1,length(TTLtimes))*rms(continuousTrace(1,:))*5,'d')
+end
+
 
 % diffTTL=diff(TTLtimes);
 % if mode(diff(TTLtimes))> 20 %likely stimulation trial

@@ -1,6 +1,9 @@
 function [paramFStatus,cmdout,configFName]=GenerateKSConfigFile(fName, fDir, userParams)
 % Creates configuration file for KiloSort
 KS2dir='V:\Code\SpikeSorting\Kilosort2';
+if length(fName)>=48 %too long, will exceed 63 character limit
+    fName=fName(1:48);
+end
 configFName=[fName '_KSconfigFile.m'];
 copyfile(fullfile(KS2dir,'configFiles','StandardConfig_MOVEME.m'),...
     fullfile(fDir,configFName));

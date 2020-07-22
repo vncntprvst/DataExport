@@ -81,17 +81,12 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
         if contains(fName,filesep)
             analogChannel = openNSx(fName);
         else 
-%             dataDirListing=dir;
-%             dataDirListing=dataDirListing(~cellfun('isempty',cellfun(@(x)...
-%                 strcmp(x(1:end-4),fName(1:end-4)) & strfind(x,'.nev'),... % ns2 -> assuming TTL recorded at 1kHz
-%                 {dataDirListing.name},'UniformOutput',false)));
-%             if size({dataDirListing.name},2)==1
-%                 syncfName=dataDirListing.name;
-%             elseif size({dataDirListing.name},2)>1
-%             else
               syncfName=strrep(fName,'ns6','ns4'); %'nev' ns4: analog channel recorded at 10kHz
-%             end
               analogChannel = openNSx([cd filesep syncfName]);
+              if analogChannel<0
+                  syncfName=strrep(fName,'ns6','ns2'); %ns2 -> TTL recorded at 1kHz (old setup)
+                  analogChannel = openNSx([cd filesep syncfName]);
+              end       
 %               analogChannel = openNEV([cd filesep syncfName]);
         end
         % openNEV returns struct('MetaTags',[], 'ElectrodesInfo', [], 'Data', []);
@@ -99,19 +94,19 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
         % in some other version, openNSx also returned 'ElectrodesInfo'
 %       %send sync TTL to AIN1, which is Channel 129. AIN2 is 130. AIN3 is 131
         
-        if sum(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs)) %check that it is present
+        if any(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs)) %check that it is present
             analogChannels=find(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs));
 %         if sum(cellfun(@(x)
 %         contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label}));
 %             analogChannels=cellfun(@(x) contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label})
-        elseif sum(cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank}))
+        elseif any(cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank}))
             analogChannels=cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank});
         end
         analogTTLTrace=analogChannel.Data(analogChannels,:); %send sync TTL to AINP1
         if ~isempty(analogTTLTrace) && ~iscell(analogTTLTrace)
             clear TTLs;
             for TTLChan=1:size(analogTTLTrace,1)
-                [TTLtimes,TTLdur]=ContinuousToTTL(analogTTLTrace(TTLChan,:),'keepfirstonly');
+                [TTLtimes,TTLdur]=ContinuousToTTL(analogTTLTrace(TTLChan,:),analogChannel.MetaTags.SamplingFreq,'keepfirstonly');
                 if ~isempty(TTLtimes)
                     TTLs{TTLChan}=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
                 end

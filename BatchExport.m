@@ -19,13 +19,16 @@ dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_SC';'_JR';'_ML'}),...
 if ~exist('exportDir','var')
     exportDir=([cd filesep 'SpikeSorting']);
 end
+
 %also check if there are video frame times to export
-% cd(exportDir); cd '..'
 videoFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.mp4','*.avi'},'UniformOutput', false);
 videoFiles=vertcat(videoFiles{~cellfun('isempty',videoFiles)});
-videoFiles=videoFiles(~cellfun(@(flnm) contains(flnm,{'WhiskerTracking'}),... %don't include WhiskerTracking folder
-    {videoFiles.folder})); %by filename
+if ~isempty(videoFiles)
+    videoFiles=videoFiles(~cellfun(@(flnm) contains(flnm,{'WhiskerTracking'}),... %don't include WhiskerTracking folder
+        {videoFiles.folder})); %by filename
+end
+
 allRecInfo=cell(size(dataFiles,1),1);
 
 %% find / ask for probe file when exporting and copy to export folder
@@ -185,15 +188,15 @@ for fileNum=1:size(dataFiles,1)
 %             round(trialTTL.end(1,1)/trialTTL.samplingRate*1000)+...
 %             cumsum(round(diff(trialTTL.end(:,1)/trialTTL.samplingRate*1000)))]'; %exact rounding
 %         fwrite(fileID,TTLtimes,'int32'); % [trialTTL.start(:,2);trialTTL.end(:,2)].1 ms resolution
-        fwrite(fileID,[trialTTL.start(:,2)';trialTTL.end(:,2)'],'double');
+        fwrite(fileID,[trialTTL.start(:,end)';trialTTL.end(:,end)'],'double');
         fclose(fileID);
         %save timestamps in seconds units as .csv
-        dlmwrite([recordingName '_export_trial.csv'],trialTTL.start(:,2)/1000,...
+        dlmwrite([recordingName '_export_trial.csv'],trialTTL.start(:,end)/1000,...
             'delimiter', ',', 'precision', '%5.11f');
         %save timestamps in seconds units as .mat (not required)
 %         times=trialTTL.start(:,2)/1000;
 %         save([recordingName '_export_trial.mat'],'times');
-%         recInfo.export.TTLs={[recordingName '_TTLs.dat'];[recordingName '_export_trial.csv'];[recordingName '_export_trial.mat']};
+        recInfo.export.TTLs={[recordingName '_TTLs.dat'];[recordingName '_export_trial.csv'];[recordingName '_export_trial.mat']};
     end
     
     
@@ -205,26 +208,29 @@ for fileNum=1:size(dataFiles,1)
                 vSyncTTL.start=vSyncTTL.start';
             end
             TTLtimes=vSyncTTL.start(:,size(vSyncTTL.start,2));
-            frameCaptureTime=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding
+            frameCaptureTime=TTLtimes;
+%             frameCaptureTime=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding 
         elseif exist('vSyncTTL','var')
             frameCaptureTime=vSyncTTL;
         elseif exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
             % save video frame time file (vSync TTLs prefered method)
             frameCaptureTime=frameCaptureTime(1,frameCaptureTime(2,:)<0)';
-            frameCaptureTime=[round(frameCaptureTime(1));round(frameCaptureTime(1))+cumsum(round(diff(frameCaptureTime)))];
+%             frameCaptureTime=[round(frameCaptureTime(1));round(frameCaptureTime(1))+cumsum(round(diff(frameCaptureTime)))];
         end
-        fwrite(fileID,frameCaptureTime,'int32'); % just save one single column
+        fwrite(fileID,frameCaptureTime,'double'); %'int32' %just save one single column
         fclose(fileID);
         recInfo.export.vSync=[recordingName '_vSyncTTLs.dat'];
     end
     
     %% try to find likely companion video file
-    fileComp=cellfun(@(vfileName) intersect(regexp(dataFiles(fileNum).name,'[a-zA-Z0-9]+','match'),...
-        regexp(vfileName,'[a-zA-Z0-9]+','match'),'stable'), {videoFiles.name},'un',0);
-    fileMatchIdx=cellfun(@numel,fileComp)==max(cellfun(@numel,fileComp));
-    if sum(fileMatchIdx)==1
-        %likely match
-        recInfo.likelyVideoFile=videoFiles(fileMatchIdx).name;
+    if ~isempty(videoFiles)
+        fileComp=cellfun(@(vfileName) intersect(regexp(dataFiles(fileNum).name,'[a-zA-Z0-9]+','match'),...
+            regexp(vfileName,'[a-zA-Z0-9]+','match'),'stable'), {videoFiles.name},'un',0);
+        fileMatchIdx=cellfun(@numel,fileComp)==max(cellfun(@numel,fileComp));
+        if any(fileMatchIdx)==1
+            %likely match
+            recInfo.likelyVideoFile=videoFiles(fileMatchIdx).name;
+        end
     end
     %% save data info
     save([recordingName '_recInfo'],'recInfo','-v7.3');
