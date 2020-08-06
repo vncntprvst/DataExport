@@ -60,61 +60,94 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
     %         30 kS/s: Records at 30k samples/second. Saved as NS5 file.
     %         Raw: Records the raw data at 30k samples/second. Saved as NS6 file.
     TTLchannelIDs = [129, 130, 131];
-    if contains(fName,'.nev')
-        %         NEV=openNEV('read', [dirName filesep fName]);
-        load([fName(1:end-3), 'mat'])
-        TTLs.sampleRate=NEV.MetaTags.SampleRes;
-        %find which analog channel has inputs
-        TTLChannel=cellfun(@(x) contains(x','ain'),{NEV.ElectrodesInfo.ElectrodeLabel}) & ...
-            [NEV.ElectrodesInfo.DigitalFactor]>1000 & [NEV.ElectrodesInfo.HighThreshold]>0;
-        if sum(TTLChannel)==0 %then assume TTL was AIN 1
-            TTLChannel=cellfun(@(x) contains(x','ainp1'),{NEV.ElectrodesInfo.ElectrodeLabel}) & ...
-                [NEV.ElectrodesInfo.DigitalFactor]>1000;
-        end
-        TTLChannel=NEV.ElectrodesInfo(TTLChannel).ElectrodeID;
-        TTL_times=NEV.Data.Spikes.TimeStamp(NEV.Data.Spikes.Electrode==TTLChannel);
-        TTL_shapes=NEV.Data.Spikes.Waveform(:,NEV.Data.Spikes.Electrode==TTLChannel);
-        artifactsIdx=median(TTL_shapes)<mean(median(TTL_shapes))/10;
-        %             figure; plot(TTL_shapes(:,~artifactsIdx));
-        TTLs.start=TTL_times(~artifactsIdx);
-    else
-        if contains(fName,filesep)
-            analogChannel = openNSx(fName);
-        else 
-              syncfName=strrep(fName,'ns6','ns4'); %'nev' ns4: analog channel recorded at 10kHz
-              analogChannel = openNSx([cd filesep syncfName]);
-              if analogChannel<0
-                  syncfName=strrep(fName,'ns6','ns2'); %ns2 -> TTL recorded at 1kHz (old setup)
-                  analogChannel = openNSx([cd filesep syncfName]);
-              end       
-%               analogChannel = openNEV([cd filesep syncfName]);
-        end
-        % openNEV returns struct('MetaTags',[], 'ElectrodesInfo', [], 'Data', []);
-        % openNSx returns  struct('MetaTags',[],'Data',[], 'RawData', []);
-        % in some other version, openNSx also returned 'ElectrodesInfo'
-%       %send sync TTL to AIN1, which is Channel 129. AIN2 is 130. AIN3 is 131
-        
-        if any(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs)) %check that it is present
-            analogChannels=find(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs));
-%         if sum(cellfun(@(x)
-%         contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label}));
-%             analogChannels=cellfun(@(x) contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label})
-        elseif any(cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank}))
-            analogChannels=cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank});
-        end
-        analogTTLTrace=analogChannel.Data(analogChannels,:); %send sync TTL to AINP1
-        if ~isempty(analogTTLTrace) && ~iscell(analogTTLTrace)
-            clear TTLs;
-            for TTLChan=1:size(analogTTLTrace,1)
-                [TTLtimes,TTLdur]=ContinuousToTTL(analogTTLTrace(TTLChan,:),analogChannel.MetaTags.SamplingFreq,'keepfirstonly');
-                if ~isempty(TTLtimes)
-                    TTLs{TTLChan}=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
-                end
+    
+    %% check NEV file first, even if NS file is in argument
+    % NEV files contain records of digital pin events, where TTL should be
+%     if contains(fName,'.nev')
+        NEVdata=openNEV([fName(1:end-3), 'nev']); 
+        sampleRate=NEVdata.MetaTags.SampleRes;
+        digInEvents=NEVdata.Data.SerialDigitalIO.UnparsedData;
+        digInTimes=NEVdata.Data.SerialDigitalIO.TimeStamp; %TimeStampSec i interval in ms? 
+
+% Given 2 inputs in Port 0 and 1
+% No input              => bin2dec('00') = 0
+% input on Port 0 only  => bin2dec('10') = 2
+% input on Port 1 only  => bin2dec('01') = 1
+% input on both ports   => bin2dec('11') = 3
+
+TTL_ID=logical(dec2bin(digInEvents)-'0');
+if ~isempty(TTL_ID)
+    clear TTLs;
+    for TTLChan=size(TTL_ID,2):-1:1
+        TTLIdx=bwconncomp(TTL_ID(:,TTLChan));%'PixelIdxList'
+        if ~isempty(TTLIdx)
+            TTLdur=mode(cellfun(@(pulse) digInTimes(pulse(end))-digInTimes(pulse(1))+1,...
+                TTLIdx.PixelIdxList));
+            TTLIdx=cellfun(@(pulse) pulse(1), TTLIdx.PixelIdxList);
+            try
+                TTLs{size(TTL_ID,2)-TTLChan+1}=...
+                    ConvTTLtoTrials(digInTimes(TTLIdx),TTLdur,sampleRate);
+            catch
+                continue;
             end
-            if size(TTLs,2)==1
-                TTLs=TTLs{1};
-            end
+        else
+            continue;
         end
     end
+    
+elseif contains(fName,'.nev')  
+    %find which analog channel has inputs
+    TTLChannel=cellfun(@(x) contains(x','ain'),{NEVdata.ElectrodesInfo.ElectrodeLabel}) & ...
+        [NEVdata.ElectrodesInfo.DigitalFactor]>1000 & [NEVdata.ElectrodesInfo.HighThreshold]>0;
+    if sum(TTLChannel)==0 %then assume TTL was AIN 1
+        TTLChannel=cellfun(@(x) contains(x','ainp1'),{NEVdata.ElectrodesInfo.ElectrodeLabel}) & ...
+            [NEVdata.ElectrodesInfo.DigitalFactor]>1000;
+    end
+    
+    TTLChannel=NEVdata.ElectrodesInfo(TTLChannel).ElectrodeID;
+    TTL_times=NEVdata.Data.Spikes.TimeStamp(NEVdata.Data.Spikes.Electrode==TTLChannel);
+    TTL_shapes=NEVdata.Data.Spikes.Waveform(:,NEVdata.Data.Spikes.Electrode==TTLChannel);
+    artifactsIdx=median(TTL_shapes)<mean(median(TTL_shapes))/10;
+    %             figure; plot(TTL_shapes(:,~artifactsIdx));
+    TTLs.start=TTL_times(~artifactsIdx);
+else % check analog channels in NS file
+    if contains(fName,filesep)
+        analogChannel = openNSx(fName);
+    else
+        syncfName=strrep(fName,'ns6','ns4'); %'nev' ns4: analog channel recorded at 10kHz
+        analogChannel = openNSx([cd filesep syncfName]);
+        if analogChannel<0
+            syncfName=strrep(fName,'ns6','ns2'); %ns2 -> TTL recorded at 1kHz (old setup)
+            analogChannel = openNSx([cd filesep syncfName]);
+        end
+        %               analogChannel = openNEV([cd filesep syncfName]);
+    end
+    % openNEV returns struct('MetaTags',[], 'ElectrodesInfo', [], 'Data', []);
+    % openNSx returns  struct('MetaTags',[],'Data',[], 'RawData', []);
+    % in some other version, openNSx also returned 'ElectrodesInfo'
+    %       %send sync TTL to AIN1, which is Channel 129. AIN2 is 130. AIN3 is 131
+    
+    if any(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs)) %check that it is present
+        analogChannels=find(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs));
+        %         if sum(cellfun(@(x)
+        %         contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label}));
+        %             analogChannels=cellfun(@(x) contains(x,'ainp1'),{analogChannel.ElectrodesInfo.Label})
+    elseif any(cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank}))
+        analogChannels=cellfun(@(x) contains(x,'D'),{analogChannel.ElectrodesInfo.ConnectorBank});
+    end
+    analogTTLTrace=analogChannel.Data(analogChannels,:); %send sync TTL to AINP1
+    if ~isempty(analogTTLTrace) && ~iscell(analogTTLTrace)
+        clear TTLs;
+        for TTLChan=1:size(analogTTLTrace,1)
+            [TTLtimes,TTLdur]=ContinuousToTTL(analogTTLTrace(TTLChan,:),analogChannel.MetaTags.SamplingFreq,'keepfirstonly');
+            if ~isempty(TTLtimes)
+                TTLs{TTLChan}=ConvTTLtoTrials(TTLtimes,TTLdur,analogChannel.MetaTags.SamplingFreq);
+            end
+        end
+        if size(TTLs,2)==1
+            TTLs=TTLs{1};
+        end
+    end
+end
 end
 
