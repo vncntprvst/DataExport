@@ -38,8 +38,10 @@ if ~isempty(probeFile{:})
     probeFileName=probeFile{1, 1}.name;
     probePathName=probeFile{1, 1}.folder;
 else
+    filePath  = matlab.desktop.editor.getActiveFilename;
+    filePath = regexp(filePath,['.+(?=\' filesep '.+$)'],'match','once'); %removes filename
     [probeFileName,probePathName] = uigetfile('*.mat','Select the .mat probe file',...
-        '/home/wanglab/Code/EphysDataProc/DataExport/probemaps');
+        fullfile(filePath, 'probemaps'));
     copyfile(fullfile(probePathName,probeFileName),fullfile(cd,'SpikeSorting',probeFileName));
 end
 
