@@ -12,7 +12,7 @@ dataFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
 dataFiles=vertcat(dataFiles{~cellfun('isempty',dataFiles)});
 % just in case other export / spike sorting has been performed, do not include those files
 dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_export';'_TTLs'; '_trialTTLs'; '_vSyncTTLs';...
-    'temp_wh';'_nopp.dat';'_all_sc';'_VideoFrameTimes'}),...
+    'temp_wh';'_nopp.dat';'_all_sc';'_VideoFrameTimes';'_Wheel'}),...
     {dataFiles.name})); %by filename
 dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_SC';'_JR';'_ML'}),...
     {dataFiles.folder})); % by folder name
@@ -60,12 +60,16 @@ for fileNum=1:size(dataFiles,1)
                             vSyncTTL=TTLdata;
                             clear trialTTL
                     end
+                else
+                    trialTTL=TTLdata{1}; %might be laser stim or behavior
+                    vSyncTTL=[];
                 end
             case 2
                 trialTTL=TTLdata{1}; %might be laser stim or behavior
                 vSyncTTL=TTLdata{2};
-            case 3
-                % TBD
+            case 3 %third is superfluous for now
+                trialTTL=[]; 
+                vSyncTTL=TTLdata{2};
             otherwise
                 if ~iscell(TTLdata)
                     vSyncTTL=TTLdata;
