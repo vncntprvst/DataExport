@@ -12,7 +12,7 @@ if ~isfield(probeParams,'chanMap')
     probeParams.chanMap = 1:probeParams.numChannels;
 end
 
-%% Define the horizontal (x) and vertical (y) coordinates (in ?m)
+%% Define the horizontal (x) and vertical (y) coordinates (in um)
 
 if ~isfield(probeParams,'geometry')
     xcoords = 20 * ones(1,probeParams.numChannels);
