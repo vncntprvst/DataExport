@@ -2,7 +2,7 @@ function [dataFiles,allRecInfo]=BatchExport(exportDir)
 % not finalized yet
 % if export for SC, must not be run as root (so start Matlab from /bin/matlab as user)
 % Vincent Prevosto 10/16/2018
-
+rootDir=cd;
 if ~isfolder('SpikeSorting')
     %create export directory
     mkdir('SpikeSorting');
@@ -17,7 +17,7 @@ dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_export';'_TTLs'; '_trialTT
 dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_SC';'_JR';'_ML'}),...
     {dataFiles.folder})); % by folder name
 if ~exist('exportDir','var')
-    exportDir=([cd filesep 'SpikeSorting']);
+    exportDir=(fullfile(rootDir,'SpikeSorting'));
 end
 
 %also check if there are video frame times to export
@@ -32,15 +32,15 @@ end
 allRecInfo=cell(size(dataFiles,1),1);
 
 %% find / ask for probe file when exporting and copy to export folder
-probeFile = cellfun(@(fileFormat) dir([cd filesep 'SpikeSorting' filesep fileFormat]),...
-    {'*Probe*'},'UniformOutput', false);
+probeFile = cellfun(@(fileFormat) dir(fullfile(rootDir,'SpikeSorting', fileFormat)),...
+    {'*.json'},'UniformOutput', false);
 if ~isempty(probeFile{:})
     probeFileName=probeFile{1, 1}.name;
     probePathName=probeFile{1, 1}.folder;
 else
     filePath  = mfilename('fullpath');
     filePath = regexp(filePath,['.+(?=\' filesep '.+$)'],'match','once'); %removes filename
-    [probeFileName,probePathName] = uigetfile('*.mat','Select the .mat probe file',...
+    [probeFileName,probePathName] = uigetfile('*.json','Select the .json probe file',...
         fullfile(filePath, 'probemaps'));
     copyfile(fullfile(probePathName,probeFileName),fullfile(cd,'SpikeSorting',probeFileName));
 end
@@ -202,10 +202,9 @@ for fileNum=1:size(dataFiles,1)
         %save timestamps in seconds units as .mat (not required)
 %         times=trialTTL.start(:,2)/1000;
 %         save([recordingName '_export_trial.mat'],'times');
-        recInfo.export.TTLs={[recordingName '_TTLs.dat'];[recordingName '_export_trial.csv'];[recordingName '_export_trial.mat']};
+        recInfo.export.TTLs={[recordingName '_TTLs.dat'];[recordingName '_trial.csv']}; %[recordingName '_export_trial.mat']};
     end
-    
-    
+      
     %% save video sync TTL data, in ms resolution
     if exist('vSyncTTL','var') || (exist('frameCaptureTime','var') && ~isempty(frameCaptureTime))
         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
@@ -239,7 +238,35 @@ for fileNum=1:size(dataFiles,1)
         end
     end
     %% save data info
+    % save as .mat file (will be discontinued)
     save([recordingName '_recInfo'],'recInfo','-v7.3');
+    
+    % save a json file in the root folder for downstream pipeline ingest 
+    recInfo.dataPoints=int32(recInfo.dataPoints);
+    fid  = fopen(fullfile(rootDir,[recordingName '_info.json']),'w');
+    fprintf(fid,'{\r\n');
+    fldNames=fieldnames(recInfo);
+    for fldNum=1:numel(fldNames)
+        str=jsonencode(recInfo.(fldNames{fldNum}));
+        if contains(fldNames{fldNum},'export')
+            str=regexprep(str,'(?<={)"','\r\n\t\t"');
+            str=regexprep(str,'(?<=,)"','\r\n\t\t"');
+        end
+        if fldNum<numel(fldNames)
+            fprintf(fid,['\t"' fldNames{fldNum} '": %s,\r\n'],str);
+        else
+            fprintf(fid,['\t"' fldNames{fldNum} '": %s\r\n'],str);
+        end
+    end
+    fprintf(fid,'}');
+    fclose(fid);
+
+%    %To read the file:
+%     foo = fileread(fullfile(rootDir,[recordingName '_recInfo.json']));
+%     foo = jsondecode(foo);
+
+    % TBD: insert session info in pipeline right here
+    
 end
 cd ..
 

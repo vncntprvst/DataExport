@@ -227,7 +227,7 @@ try
         % %             splitVector=round(linspace(1,max(rec.fileSamples),round(fileSize/(5*10^3))));
         % %             data=openNSx([dname fname],['t:1:' num2str(splitVector(2))] , 'sample');
         %         else
-        data = openNSx([cd filesep fname]);
+        data = openNSx(fullfile(cd,fname));
         %         end
         if iscell(data.Data) && size(data.Data,2)>1 %gets splitted into two cells sometimes for no reason
             data.Data=[data.Data{:}]; %remove extra data.Data=data.Data(:,1:63068290);
@@ -250,7 +250,8 @@ try
         end
         %     analogData = openNSxNew([fname(1:end-1) '2']);
         %get basic info about recording
-        rec.dur=data.MetaTags.DataPoints;
+        rec.duration_sec=data.MetaTags.DataDurationSec;
+        rec.dataPoints= data.MetaTags.DataPoints;
         rec.samplingRate=data.MetaTags.SamplingFreq;
         rec.bitResolution=0.25; % +/-8 mV @ 16-Bit => 16000/2^16 = 0.2441 uV
         rec.chanID=data.MetaTags.ChannelID;
@@ -265,9 +266,12 @@ try
             data.Data=data.Data(ismember(rec.chanList,find(~analogChannels)),:);
         end
         rec.numRecChan=size(data.Data,1); %data.MetaTags.ChannelCount;  %number of raw data channels.
-        rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match'))...
-            '_' cell2mat(regexp(data.MetaTags.DateTime,'(?<= )\d.+','match'))];
-        rec.date=regexprep(rec.date,'\W','_');
+%         rec.date=[cell2mat(regexp(data.MetaTags.DateTime,'^.+\d(?= )','match'))...
+%             '_' cell2mat(regexp(data.MetaTags.DateTime,'(?<= )\d.+','match'))];
+%         rec.date=regexprep(rec.date,'\W','_');
+        rec.date=data.MetaTags.DateTime;
+        rec.start_time=datevec(data.MetaTags.DateTime);
+        rec.start_time=[rec.start_time(4:6),data.MetaTags.DateTimeRaw(end)];
         % keep only raw data in data variable
         data=data.Data;
         disp(['took ' num2str(toc) ' seconds to load data']);
