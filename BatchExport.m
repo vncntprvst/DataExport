@@ -225,6 +225,7 @@ for fileNum=1:size(dataFiles,1)
         fwrite(fileID,frameCaptureTime,'double'); %'int32' %just save one single column
         fclose(fileID);
         recInfo.export.vSync=[recordingName '_vSyncTTLs.dat'];
+        copyfile([recordingName '_vSyncTTLs.dat'],fullfile(rootDir,[recordingName '_vSyncTTLs.dat']));
     end
     
     %% try to find likely companion video file

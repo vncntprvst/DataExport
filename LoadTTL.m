@@ -65,9 +65,9 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
     % NEV files contain records of digital pin events, where TTL should be
     %     if contains(fName,'.nev')
     NEVdata=openNEV([fName(1:end-3), 'nev']);
-    sampleRate=NEVdata.MetaTags.SampleRes;
+    sampleRate=double(NEVdata.MetaTags.SampleRes);
     digInEvents=NEVdata.Data.SerialDigitalIO.UnparsedData;
-    digInTimes=NEVdata.Data.SerialDigitalIO.TimeStamp; %TimeStampSec i interval in ms?
+    digInTimes=double(NEVdata.Data.SerialDigitalIO.TimeStamp); %TimeStampSec i interval in ms?
     
     % Given 2 inputs in Port 0 and 1
     % No input              => bin2dec('00') = 0
