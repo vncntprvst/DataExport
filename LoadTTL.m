@@ -81,9 +81,14 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
         for TTLChan=size(TTL_ID,2):-1:1
             TTLIdx=bwconncomp(TTL_ID(:,TTLChan));%'PixelIdxList'
             if ~isempty(TTLIdx)
-                TTLdur=mode(cellfun(@(pulse) digInTimes(pulse(end))-digInTimes(pulse(1))+1,...
-                    TTLIdx.PixelIdxList));
-                TTLIdx=cellfun(@(pulse) pulse(1), TTLIdx.PixelIdxList);
+                if TTLIdx.NumObjects==1 %e.g., when only camera sync TTL, no laser pulses
+                    TTLdur=mode(diff(digInTimes(TTLIdx.PixelIdxList{1, 1})))/2; % assuming 50% cycle
+                    TTLIdx=TTLIdx.PixelIdxList{:};
+                else
+                    TTLdur=mode(cellfun(@(pulse) digInTimes(pulse(end))-digInTimes(pulse(1))+1,...
+                        TTLIdx.PixelIdxList));
+                    TTLIdx=cellfun(@(pulse) pulse(1), TTLIdx.PixelIdxList);
+                end
                 try
                     TTLs{size(TTL_ID,2)-TTLChan+1}=...
                         ConvTTLtoTrials(digInTimes(TTLIdx),TTLdur,sampleRate);
