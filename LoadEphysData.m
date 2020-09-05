@@ -271,7 +271,11 @@ try
 %         rec.date=regexprep(rec.date,'\W','_');
         rec.date=data.MetaTags.DateTime;
         rec.start_time=datevec(data.MetaTags.DateTime);
-        rec.start_time=[rec.start_time(4:6),data.MetaTags.DateTimeRaw(end)];
+        if ~isempty(data.MetaTags.DateTimeRaw)
+            rec.start_time=[rec.start_time(4:6),data.MetaTags.DateTimeRaw(end)];
+        else
+            rec.start_time=[rec.start_time(4:6)];
+        end
         % keep only raw data in data variable
         data=data.Data;
         disp(['took ' num2str(toc) ' seconds to load data']);

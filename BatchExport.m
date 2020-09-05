@@ -47,33 +47,33 @@ end
 
 %% export each file
 for fileNum=1:size(dataFiles,1)
-    try
+    try 
         [recInfo,recordings,spikes,TTLdata] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
-        switch size(TTLdata,2)
+        switch size(TTLdata,2) %% Convention : 1 - Laser / 2 - Camera 1 / 3 - Session trials
             case 1
                 if isfield(TTLdata,'TTLChannel')
                     switch TTLdata.TTLChannel
                         case 1
-                            trialTTL=TTLdata;
-                            vSyncTTL=0;
+                            laserTTL=TTLdata;
+                            videoTTL=0;
                         case 2
-                            vSyncTTL=TTLdata;
-                            clear trialTTL
+                            videoTTL=TTLdata;
+                            clear laserTTL
                     end
                 else
-                    trialTTL=TTLdata{1}; %might be laser stim or behavior
-                    vSyncTTL=[];
+                    laserTTL=TTLdata{1}; %might be laser stim or behavior
+                    videoTTL=[];
                 end
             case 2
-                trialTTL=TTLdata{1}; %might be laser stim or behavior
-                vSyncTTL=TTLdata{2};
+                laserTTL=TTLdata{1}; %used to be behavior trials in older recordings
+                videoTTL=TTLdata{2};
             case 3 %third is superfluous for now
-                trialTTL=[]; 
-                vSyncTTL=TTLdata{2};
+                laserTTL=[]; 
+                videoTTL=TTLdata{2};
             otherwise
                 if ~iscell(TTLdata)
-                    vSyncTTL=TTLdata;
-                    clear trialTTL
+                    videoTTL=TTLdata;
+                    clear laserTTL
                 end
         end
         allRecInfo{fileNum}=recInfo;
@@ -101,8 +101,16 @@ for fileNum=1:size(dataFiles,1)
         recordingName=dataFiles(fileNum).name(1:end-4);
     end
     
+    % collect info 
+    recInfo.dataPoints=int32(recInfo.dataPoints);
+    recInfo.recordingName=recordingName;
+    recNameComp=regexp(strrep(recordingName,'_','-'),'\w+','match');
+    recInfo.subject=recNameComp{1};
+    recInfo.day=recNameComp{2};
+    recInfo.ref=recNameComp{3};
+    
     %% get video sync TLLs
-    if ~exist('vSyncTTL','var') && isempty(vSyncTTL)
+    if ~exist('vSyncTTL','var') && isempty(videoTTL)
         try % this should already be performed by LoadTTL, called from LoadEphysData above
             cd(vSyncTTLDir); dirListing=dir(vSyncTTLDir);
             % see LoadTTL - change function if needed
@@ -131,13 +139,13 @@ for fileNum=1:size(dataFiles,1)
                 videoFrameTimes=ReadVideoFrameTimes(videoFrameTimeFileName);
                 % synchronize based on trial structure
                 try
-                    vSyncDelay=mean(vSyncTTL.TTLtimes/vSyncTTL.samplingRate*1000-...
+                    vSyncDelay=mean(videoTTL.TTLtimes/videoTTL.samplingRate*1000-...
                         videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(...
                         [true;diff(videoFrameTimes.TTLFrames)>1]))');
                 catch % different number of TTLs. Possibly "laser" sync. Assuming first 20 correct
                     videoIndexing=[true;diff(videoFrameTimes.TTLFrames)>1];
                     videoIndexing(max(find(videoIndexing,20))+1:end)=false;
-                    vSyncDelay=mean(vSyncTTL.TTLtimes(1:20)/vSyncTTL.samplingRate*1000-...
+                    vSyncDelay=mean(videoTTL.TTLtimes(1:20)/videoTTL.samplingRate*1000-...
                         videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(...
                         videoIndexing))');
                 end
@@ -179,10 +187,10 @@ for fileNum=1:size(dataFiles,1)
     end
     
     %% save trial/stim TTLs in ms resolution
-    if exist('trialTTL','var') && ~isempty(trialTTL) && ~isempty(trialTTL.start)
-        if size(trialTTL.start,1)<size(trialTTL.start,2) %swap dimensions
-            trialTTL.start=trialTTL.start';
-            trialTTL.end=trialTTL.end';
+    if exist('trialTTL','var') && ~isempty(laserTTL) && ~isempty(laserTTL.start)
+        if size(laserTTL.start,1)<size(laserTTL.start,2) %swap dimensions
+            laserTTL.start=laserTTL.start';
+            laserTTL.end=laserTTL.end';
         end
         % save binary file in ms units
         fileID = fopen([recordingName '_TTLs.dat'],'w');
@@ -194,11 +202,11 @@ for fileNum=1:size(dataFiles,1)
 %             round(trialTTL.end(1,1)/trialTTL.samplingRate*1000)+...
 %             cumsum(round(diff(trialTTL.end(:,1)/trialTTL.samplingRate*1000)))]'; %exact rounding
 %         fwrite(fileID,TTLtimes,'int32'); % [trialTTL.start(:,2);trialTTL.end(:,2)].1 ms resolution
-        fwrite(fileID,[trialTTL.start(:,end)';trialTTL.end(:,end)'],'double');
+        fwrite(fileID,[laserTTL.start(:,end)';laserTTL.end(:,end)'],'double');
         fclose(fileID);
         %save timestamps in seconds units as .csv
-        dlmwrite([recordingName '_export_trial.csv'],trialTTL.start(:,end)/1000,...
-            'delimiter', ',', 'precision', '%5.11f');
+        dlmwrite([recordingName '_trial.csv'],laserTTL.start(:,end)/1000,...
+            'delimiter', ',', 'precision', '%5.5f');
         %save timestamps in seconds units as .mat (not required)
 %         times=trialTTL.start(:,2)/1000;
 %         save([recordingName '_export_trial.mat'],'times');
@@ -208,15 +216,15 @@ for fileNum=1:size(dataFiles,1)
     %% save video sync TTL data, in ms resolution
     if exist('vSyncTTL','var') || (exist('frameCaptureTime','var') && ~isempty(frameCaptureTime))
         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
-        if exist('vSyncTTL','var') && isfield(vSyncTTL,'start') && ~isempty(vSyncTTL.start)
-            if size(vSyncTTL.start,2)>size(vSyncTTL.start,1) %we want vertical arrays
-                vSyncTTL.start=vSyncTTL.start';
+        if exist('vSyncTTL','var') && isfield(videoTTL,'start') && ~isempty(videoTTL.start)
+            if size(videoTTL.start,2)>size(videoTTL.start,1) %we want vertical arrays
+                videoTTL.start=videoTTL.start';
             end
-            TTLtimes=vSyncTTL.start(:,size(vSyncTTL.start,2));
+            TTLtimes=videoTTL.start(:,size(videoTTL.start,2));
             frameCaptureTime=TTLtimes;
 %             frameCaptureTime=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding 
         elseif exist('vSyncTTL','var')
-            frameCaptureTime=vSyncTTL;
+            frameCaptureTime=videoTTL;
         elseif exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
             % save video frame time file (vSync TTLs prefered method)
             frameCaptureTime=frameCaptureTime(1,frameCaptureTime(2,:)<0)';
@@ -242,8 +250,7 @@ for fileNum=1:size(dataFiles,1)
     % save as .mat file (will be discontinued)
     save([recordingName '_recInfo'],'recInfo','-v7.3');
     
-    % save a json file in the root folder for downstream pipeline ingest 
-    recInfo.dataPoints=int32(recInfo.dataPoints);
+    % save a json file in the root folder for downstream pipeline ingest    
     fid  = fopen(fullfile(rootDir,[recordingName '_info.json']),'w');
     fprintf(fid,'{\r\n');
     fldNames=fieldnames(recInfo);
