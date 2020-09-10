@@ -103,11 +103,11 @@ for fileNum=1:size(dataFiles,1)
     
     % collect info 
     recInfo.dataPoints=int32(recInfo.dataPoints);
-    recInfo.recordingName=recordingName;
+    recInfo.baseName=recordingName;
     recNameComp=regexp(strrep(recordingName,'_','-'),'\w+','match');
     recInfo.subject=recNameComp{1};
-    recInfo.day=recNameComp{2};
-    recInfo.ref=recNameComp{3};
+    recInfo.shortDate=recNameComp{2};
+    recInfo.probeDepth=recNameComp{3};
     
     %% get video sync TLLs
     if ~exist('vSyncTTL','var') && isempty(videoTTL)
@@ -253,6 +253,8 @@ for fileNum=1:size(dataFiles,1)
     % save a json file in the root folder for downstream pipeline ingest    
     fid  = fopen(fullfile(rootDir,[recordingName '_info.json']),'w');
     fprintf(fid,'{\r\n');
+    
+    %% write session info
     fldNames=fieldnames(recInfo);
     for fldNum=1:numel(fldNames)
         str=jsonencode(recInfo.(fldNames{fldNum}));
@@ -260,12 +262,86 @@ for fileNum=1:size(dataFiles,1)
             str=regexprep(str,'(?<={)"','\r\n\t\t"');
             str=regexprep(str,'(?<=,)"','\r\n\t\t"');
         end
-        if fldNum<numel(fldNames)
-            fprintf(fid,['\t"' fldNames{fldNum} '": %s,\r\n'],str);
-        else
-            fprintf(fid,['\t"' fldNames{fldNum} '": %s\r\n'],str);
+        fprintf(fid,['\t"' fldNames{fldNum} '": %s,'],str);
+%         if fldNum<numel(fldNames); fprintf(fid,','); end
+        fprintf(fid,'\r\n');
+    end
+    
+    %% get info about recording location, laser, etc from notes
+    ephys=struct('probe', [],'adapter', [],'AP', [], 'ML', [],'depth', []);
+    photoStim=struct('protocolNum', [], 'stimPower', [], 'stimFreq', [],...
+        'pulseDur', [], 'stimDevice', [], 'trainLength', []);
+    
+    notesFile=fullfile(regexp(rootDir,['.+(?=\' filesep '.+$)'],'match','once'),...
+        [recInfo.subject  '_notes.json']);
+    if any(exist(notesFile,'file'))
+        notes=jsondecode(fileread(notesFile));
+        % get info about that session
+        sessionIdx=contains({notes.Sessions.baseName}, recInfo.baseName);
+        session=notes.Sessions(sessionIdx);
+        % allocate data
+        if ~isempty(session)
+            ephys=session; ephys=rmfield(ephys,{'baseName','date','stimPower',...
+                'stimFreq','pulseDur', 'stimDevice'});ephys=ephys(1);
+            photoStim=session; photoStim=rmfield(photoStim,{'baseName','date',...
+                'probe','adapter','AP', 'ML','depth'});
+            for protocolNum=1:size(photoStim,2) % in case there are multiple stimulation protocols
+                photoStim(protocolNum).protocolNum=protocolNum-1;
+            end
         end
     end
+    % update with available real data
+    if exist('laserTTL','var') && ~isempty(laserTTL)
+        for protocolNum=1:size(laserTTL,2)
+        photoStim(protocolNum).pulseDur=round(mode(diff([laserTTL(protocolNum).start(2,:);laserTTL(protocolNum).end(2,:)])))/1000;
+        photoStim(protocolNum).stimFreq=1/(round(mode(diff(laserTTL(protocolNum).start(2,:))))/1000);
+        photoStim.trainLength=numel(laserTTL(protocolNum).start(2,:));%'pulses_per_train'
+        end
+    elseif exist('laserTTL','var') && isempty(laserTTL)
+        photoStim.trainLength=[];
+        photoStim.protocolNum=-1;
+    end
+    str=strrep(jsonencode(ephys),',"',sprintf(',\r\n\t\t"'));
+    str=regexprep(str,'(?<={)"','\r\n\t\t"');
+    fprintf(fid,'\t"ephys": %s,\r\n',str);
+    str=strrep(jsonencode(photoStim),',"',sprintf(',\r\n\t\t"'));
+    str=regexprep(str,'(?<={)"','\r\n\t\t"');
+    fprintf(fid,'\t"photoStim": %s,\r\n',str);
+    
+    %% add trial data
+    clearvars trials
+    trials = {};
+        % if there's no task but no-stim / stim epochs create two trials:
+        if exist('trialTTL','var')
+            %
+        else
+            if exist('laserTTL','var') && ~isempty(laserTTL)
+                for stimN=1:size(laserTTL,2)
+                    trials((stimN)*2-1).trialNum=(stimN)*2-2; 
+                    if stimN ==1; trials((stimN)*2-1).start=0; else...
+                            trials((stimN)*2-1).start=laserTTL(stimN-1).end(2,end)/1000; end
+                    trials((stimN)*2-1).stop=laserTTL(stimN).start(2,1)/1000;
+                    trials((stimN)*2-1).isphotostim=false;
+                    trials((stimN)*2).trialNum=(stimN)*2-1;
+                    trials((stimN)*2).start=laserTTL(stimN).start(2,1)/1000;
+                    trials((stimN)*2).stop=laserTTL(stimN).end(2,end)/1000;
+                    trials((stimN)*2).isphotostim=true;
+                end
+                if laserTTL(end).end(2,end)/1000 < recInfo.duration_sec
+                    trials((stimN)*2+1).trialNum=(stimN)*2; 
+                    trials((stimN)*2+1).start=laserTTL(stimN).end(2,end)/1000; 
+                    trials((stimN)*2+1).stop=recInfo.duration_sec;
+                    trials((stimN)*2+1).isphotostim=false;
+                end
+            end
+        end
+     
+    str=strrep(jsonencode(trials),',"',sprintf(',\r\n\t\t"'));
+    str=regexprep(str,'(?<={)"','\r\n\t\t"');
+    str=regexprep(str,'},{','},\r\n\t\t{');
+    fprintf(fid,'\t"trials": %s\r\n',str); 
+    
+% close file
     fprintf(fid,'}');
     fclose(fid);
 
