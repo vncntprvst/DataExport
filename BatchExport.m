@@ -108,9 +108,8 @@ for fileNum=1:size(dataFiles,1)
     recInfo.subject=recNameComp{1};
     recInfo.shortDate=recNameComp{2};
     recInfo.probeDepth=recNameComp{3};
-    
     %% get video sync TLLs
-    if ~exist('vSyncTTL','var') && isempty(videoTTL)
+    if ~exist('videoTTL','var') && isempty(videoTTL)
         try % this should already be performed by LoadTTL, called from LoadEphysData above
             cd(vSyncTTLDir); dirListing=dir(vSyncTTLDir);
             % see LoadTTL - change function if needed
@@ -186,51 +185,48 @@ for fileNum=1:size(dataFiles,1)
         recInfo.export.spikesFile=[recordingName '_spikes.mat'];
     end
     
-    %% save trial/stim TTLs in ms resolution
-    if exist('trialTTL','var') && ~isempty(laserTTL) && ~isempty(laserTTL.start)
-        if size(laserTTL.start,1)<size(laserTTL.start,2) %swap dimensions
+    %% save photostim TTLs in second resolution
+    if exist('laserTTL','var') && ~isempty(laserTTL) && ~isempty(laserTTL(1).start)
+        % discard native sr timestamps
+        laserTTL=laserTTL([laserTTL.samplingRate]==1000);
+        %swap dimensions
+        if size(laserTTL.start,1)<size(laserTTL.start,2)
             laserTTL.start=laserTTL.start';
             laserTTL.end=laserTTL.end';
         end
-        % save binary file in ms units
+        % convert to seconds
+        laserTTL.start=single(laserTTL.start)/laserTTL.samplingRate;
+        laserTTL.end=single(laserTTL.end)/laserTTL.samplingRate;
+        % save binary file
         fileID = fopen([recordingName '_TTLs.dat'],'w');
-%         TTLtimes=nan(2,size(trialTTL.start,1));
-%         TTLtimes(1,:)=[round(trialTTL.start(1,1)/trialTTL.samplingRate*1000);...
-%             round(trialTTL.start(1,1)/trialTTL.samplingRate*1000)+...
-%             cumsum(round(diff(trialTTL.start(:,1)/trialTTL.samplingRate*1000)))]'; %exact rounding
-%         TTLtimes(2,:)=[round(trialTTL.end(1,1)/trialTTL.samplingRate*1000);...
-%             round(trialTTL.end(1,1)/trialTTL.samplingRate*1000)+...
-%             cumsum(round(diff(trialTTL.end(:,1)/trialTTL.samplingRate*1000)))]'; %exact rounding
-%         fwrite(fileID,TTLtimes,'int32'); % [trialTTL.start(:,2);trialTTL.end(:,2)].1 ms resolution
-        fwrite(fileID,[laserTTL.start(:,end)';laserTTL.end(:,end)'],'double');
+        fwrite(fileID,laserTTL.start','single'); %laserTTL.end'
         fclose(fileID);
         %save timestamps in seconds units as .csv
-        dlmwrite([recordingName '_trial.csv'],laserTTL.start(:,end)/1000,...
-            'delimiter', ',', 'precision', '%5.5f');
-        %save timestamps in seconds units as .mat (not required)
-%         times=trialTTL.start(:,2)/1000;
-%         save([recordingName '_export_trial.mat'],'times');
+        dlmwrite([recordingName '_trial.csv'],laserTTL.start,...
+            'delimiter', ',', 'precision', '%5.4f');
         recInfo.export.TTLs={[recordingName '_TTLs.dat'];[recordingName '_trial.csv']}; %[recordingName '_export_trial.mat']};
     end
-      
+    
     %% save video sync TTL data, in ms resolution
-    if exist('vSyncTTL','var') || (exist('frameCaptureTime','var') && ~isempty(frameCaptureTime))
+    if exist('videoTTL','var') || (exist('frameCaptureTime','var') && ~isempty(frameCaptureTime))
         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
-        if exist('vSyncTTL','var') && isfield(videoTTL,'start') && ~isempty(videoTTL.start)
-            if size(videoTTL.start,2)>size(videoTTL.start,1) %we want vertical arrays
-                videoTTL.start=videoTTL.start';
-            end
-            TTLtimes=videoTTL.start(:,size(videoTTL.start,2));
-            frameCaptureTime=TTLtimes;
+        if exist('videoTTL','var') && isfield(videoTTL,'start') && ~isempty(videoTTL(1).start)
+            % discard native sr timestamps
+            videoTTL=videoTTL([videoTTL.samplingRate]==1000); 
+            %we want vertical arrays
+            if size(videoTTL.start,2)>size(videoTTL.start,1); videoTTL.start=videoTTL.start'; end
+            % convert to seconds
+            videoTTL.start=single(videoTTL.start)/videoTTL.samplingRate;
+            frameCaptureTime=videoTTL.start;
 %             frameCaptureTime=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding 
-        elseif exist('vSyncTTL','var')
+        elseif exist('videoTTL','var')
             frameCaptureTime=videoTTL;
         elseif exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
             % save video frame time file (vSync TTLs prefered method)
             frameCaptureTime=frameCaptureTime(1,frameCaptureTime(2,:)<0)';
 %             frameCaptureTime=[round(frameCaptureTime(1));round(frameCaptureTime(1))+cumsum(round(diff(frameCaptureTime)))];
         end
-        fwrite(fileID,frameCaptureTime,'double'); %'int32' %just save one single column
+        fwrite(fileID,frameCaptureTime,'single'); %'int32' %just save one single column
         fclose(fileID);
         recInfo.export.vSync=[recordingName '_vSyncTTLs.dat'];
         copyfile([recordingName '_vSyncTTLs.dat'],fullfile(rootDir,[recordingName '_vSyncTTLs.dat']));
@@ -246,6 +242,38 @@ for fileNum=1:size(dataFiles,1)
             recInfo.likelyVideoFile=videoFiles(fileMatchIdx).name;
         end
     end
+    
+    %% trial data
+    trials = struct('trialNum', [], 'start', [], 'stop', [], 'isphotostim', []);
+    if exist('trialTTL','var')
+        %
+    elseif exist('laserTTL','var') && ~isempty(laserTTL)
+        % if there's no task but photostims, create no-stim / stim trials:
+        for stimN=1:size(laserTTL,2)
+            trials((stimN)*2-1).trialNum=(stimN)*2-2;
+            if stimN ==1; trials((stimN)*2-1).start=0; else;...
+                    trials((stimN)*2-1).start=laserTTL(stimN-1).end(end); end
+            trials((stimN)*2-1).stop=laserTTL(stimN).start(1);
+            trials((stimN)*2-1).isphotostim=false;
+            trials((stimN)*2).trialNum=(stimN)*2-1;
+            trials((stimN)*2).start=laserTTL(stimN).start(1);
+            trials((stimN)*2).stop=laserTTL(stimN).end(end);
+            trials((stimN)*2).isphotostim=true;
+        end
+        if laserTTL(end).end(end) < recInfo.duration_sec
+            trials((stimN)*2+1).trialNum=(stimN)*2;
+            trials((stimN)*2+1).start=laserTTL(stimN).end(end);
+            trials((stimN)*2+1).stop=recInfo.duration_sec;
+            trials((stimN)*2+1).isphotostim=false;
+        end
+    else
+        trials.trialNum=0; trials.start=0; trials.stop=recInfo.duration_sec; trials.isphotostim = 0;
+    end
+    
+    %% make trial-aligned laser and video TTLs? 
+    
+    
+
     %% save data info
     % save as .mat file (will be discontinued)
     save([recordingName '_recInfo'],'recInfo','-v7.3');
@@ -293,9 +321,10 @@ for fileNum=1:size(dataFiles,1)
     % update with available real data
     if exist('laserTTL','var') && ~isempty(laserTTL)
         for protocolNum=1:size(laserTTL,2)
-        photoStim(protocolNum).pulseDur=round(mode(diff([laserTTL(protocolNum).start(2,:);laserTTL(protocolNum).end(2,:)])))/1000;
-        photoStim(protocolNum).stimFreq=1/(round(mode(diff(laserTTL(protocolNum).start(2,:))))/1000);
-        photoStim.trainLength=numel(laserTTL(protocolNum).start(2,:));%'pulses_per_train'
+        photoStim(protocolNum).pulseDur=mode(round(diff([laserTTL(protocolNum).start';...
+            laserTTL(protocolNum).end']),4));
+        photoStim(protocolNum).stimFreq=1/(mode(round(diff(laserTTL(protocolNum).start),4)));
+        photoStim.trainLength=numel(laserTTL(protocolNum).start);%'pulses_per_train'
         end
     elseif exist('laserTTL','var') && isempty(laserTTL)
         photoStim.trainLength=[];
@@ -309,32 +338,6 @@ for fileNum=1:size(dataFiles,1)
     fprintf(fid,'\t"photoStim": %s,\r\n',str);
     
     %% add trial data
-    clearvars trials
-    trials = {};
-        % if there's no task but no-stim / stim epochs create two trials:
-        if exist('trialTTL','var')
-            %
-        else
-            if exist('laserTTL','var') && ~isempty(laserTTL)
-                for stimN=1:size(laserTTL,2)
-                    trials((stimN)*2-1).trialNum=(stimN)*2-2; 
-                    if stimN ==1; trials((stimN)*2-1).start=0; else...
-                            trials((stimN)*2-1).start=laserTTL(stimN-1).end(2,end)/1000; end
-                    trials((stimN)*2-1).stop=laserTTL(stimN).start(2,1)/1000;
-                    trials((stimN)*2-1).isphotostim=false;
-                    trials((stimN)*2).trialNum=(stimN)*2-1;
-                    trials((stimN)*2).start=laserTTL(stimN).start(2,1)/1000;
-                    trials((stimN)*2).stop=laserTTL(stimN).end(2,end)/1000;
-                    trials((stimN)*2).isphotostim=true;
-                end
-                if laserTTL(end).end(2,end)/1000 < recInfo.duration_sec
-                    trials((stimN)*2+1).trialNum=(stimN)*2; 
-                    trials((stimN)*2+1).start=laserTTL(stimN).end(2,end)/1000; 
-                    trials((stimN)*2+1).stop=recInfo.duration_sec;
-                    trials((stimN)*2+1).isphotostim=false;
-                end
-            end
-        end
      
     str=strrep(jsonencode(trials),',"',sprintf(',\r\n\t\t"'));
     str=regexprep(str,'(?<={)"','\r\n\t\t"');

@@ -69,6 +69,7 @@ end
 
 %convert to ms
 if samplingRate~=1000
-    Trials.start(2,:)=Trials.start(1,:)./(Trials.samplingRate/1000);
-    Trials.end(2,:)=Trials.end(1,:)./(Trials.samplingRate/1000);
+    Trials(2).start=Trials(1).start./(Trials(1).samplingRate/1000);
+    Trials(2).end=Trials(1).end./(Trials(1).samplingRate/1000);
+    Trials(2).samplingRate=1000;
 end
