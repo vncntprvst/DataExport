@@ -47,7 +47,7 @@ end
 
 %% export each file
 for fileNum=1:size(dataFiles,1)
-    try 
+    try
         [recInfo,recordings,spikes,TTLdata] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
         switch size(TTLdata,2) %% Convention : 1 - Laser / 2 - Camera 1 / 3 - Session trials
             case 1
@@ -68,7 +68,7 @@ for fileNum=1:size(dataFiles,1)
                 laserTTL=TTLdata{1}; %used to be behavior trials in older recordings
                 videoTTL=TTLdata{2};
             case 3 %third is superfluous for now
-                laserTTL=[]; 
+                laserTTL=[];
                 videoTTL=TTLdata{2};
             otherwise
                 if ~iscell(TTLdata)
@@ -80,6 +80,22 @@ for fileNum=1:size(dataFiles,1)
     catch
         continue
     end
+    
+    %% load other data
+    NEVdata=openNEV(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'nev']));
+    fsIdx=cellfun(@(x) contains(x','FlowSensor'),{NEVdata.ElectrodesInfo.ElectrodeLabel});
+    if any(fsIdx)
+        fsData = openNSx(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'ns4']));
+        fsIdx = cellfun(@(x) contains(x,'FlowSensor'),{fsData.ElectrodesInfo.Label});
+        fsData = fsData.Data(fsIdx,:);
+    end
+    reIdx = cellfun(@(x) contains(x','RotaryEncoder'),{NEVdata.ElectrodesInfo.ElectrodeLabel});
+    if any(reIdx)
+        reData = openNSx(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'ns2']));
+        reIdx = cellfun(@(x) contains(x,'RotaryEncoder'),{reData.ElectrodesInfo.Label});
+        reData = reData.Data(reIdx,:);
+    end
+    
     vSyncTTLDir=cd;
     %% get recording name
     % (in case they're called 'continuous' or some bland thing like this)
@@ -101,7 +117,7 @@ for fileNum=1:size(dataFiles,1)
         recordingName=dataFiles(fileNum).name(1:end-4);
     end
     
-    % collect info 
+    % collect info
     recInfo.dataPoints=int32(recInfo.dataPoints);
     recInfo.baseName=recordingName;
     recNameComp=regexp(strrep(recordingName,'_','-'),'\w+','match');
@@ -173,17 +189,38 @@ for fileNum=1:size(dataFiles,1)
     cd(recordingName)
     recInfo.export.directory=fullfile(exportDir,recordingName);
     
-    %% save data
-    fileID = fopen([recordingName '_export.bin'],'w'); %dat
+    %% save ephys data
+    fileID = fopen([recordingName '_export.bin'],'w');
     fwrite(fileID,recordings,'int16');
     fclose(fileID);
     recInfo.export.binFile=[recordingName '_export.bin'];
+    
+    %% save other data
+    if exist('fsData','var')
+        if ~isfolder(fullfile(dataFiles(fileNum).folder,'FlowSensor'))
+            mkdir(fullfile(dataFiles(fileNum).folder,'FlowSensor'));
+        end
+        fileID = fopen(fullfile(dataFiles(fileNum).folder,'FlowSensor',[recordingName '_fs.bin']),'w');
+        fwrite(fileID,fsData,'int16');
+        fclose(fileID);
+        recInfo.export.binFile=[recordingName '_fs.bin'];
+    end
+    if exist('reData','var')
+        if ~isfolder(fullfile(dataFiles(fileNum).folder,'RotaryEncoder'))
+            mkdir(fullfile(dataFiles(fileNum).folder,'RotaryEncoder'));
+        end
+        fileID = fopen(fullfile(dataFiles(fileNum).folder,'RotaryEncoder',[recordingName '_re.bin']),'w');
+        fwrite(fileID,reData,'int16');
+        fclose(fileID);
+        recInfo.export.binFile=[recordingName '_re.bin'];
+    end
     
     %% save spikes
     if ~isempty(spikes.clusters)
         save([recordingName '_spikes'],'-struct','spikes');
         recInfo.export.spikesFile=[recordingName '_spikes.mat'];
     end
+    
     
     %% save photostim TTLs in second resolution
     if exist('laserTTL','var') && ~isempty(laserTTL) && ~isempty(laserTTL(1).start)
@@ -212,19 +249,19 @@ for fileNum=1:size(dataFiles,1)
         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
         if exist('videoTTL','var') && isfield(videoTTL,'start') && ~isempty(videoTTL(1).start)
             % discard native sr timestamps
-            videoTTL=videoTTL([videoTTL.samplingRate]==1000); 
+            videoTTL=videoTTL([videoTTL.samplingRate]==1000);
             %we want vertical arrays
             if size(videoTTL.start,2)>size(videoTTL.start,1); videoTTL.start=videoTTL.start'; end
             % convert to seconds
             videoTTL.start=single(videoTTL.start)/videoTTL.samplingRate;
             frameCaptureTime=videoTTL.start;
-%             frameCaptureTime=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding 
+            %             frameCaptureTime=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding
         elseif exist('videoTTL','var')
             frameCaptureTime=videoTTL;
         elseif exist('frameCaptureTime','var') && ~isempty(frameCaptureTime)
             % save video frame time file (vSync TTLs prefered method)
             frameCaptureTime=frameCaptureTime(1,frameCaptureTime(2,:)<0)';
-%             frameCaptureTime=[round(frameCaptureTime(1));round(frameCaptureTime(1))+cumsum(round(diff(frameCaptureTime)))];
+            %             frameCaptureTime=[round(frameCaptureTime(1));round(frameCaptureTime(1))+cumsum(round(diff(frameCaptureTime)))];
         end
         fwrite(fileID,frameCaptureTime,'single'); %'int32' %just save one single column
         fclose(fileID);
@@ -270,15 +307,11 @@ for fileNum=1:size(dataFiles,1)
         trials.trialNum=0; trials.start=0; trials.stop=recInfo.duration_sec; trials.isphotostim = 0;
     end
     
-    %% make trial-aligned laser and video TTLs? 
-    
-    
-
     %% save data info
     % save as .mat file (will be discontinued)
     save([recordingName '_recInfo'],'recInfo','-v7.3');
     
-    % save a json file in the root folder for downstream pipeline ingest    
+    % save a json file in the root folder for downstream pipeline ingest
     fid  = fopen(fullfile(rootDir,[recordingName '_info.json']),'w');
     fprintf(fid,'{\r\n');
     
@@ -291,7 +324,7 @@ for fileNum=1:size(dataFiles,1)
             str=regexprep(str,'(?<=,)"','\r\n\t\t"');
         end
         fprintf(fid,['\t"' fldNames{fldNum} '": %s,'],str);
-%         if fldNum<numel(fldNames); fprintf(fid,','); end
+        %         if fldNum<numel(fldNames); fprintf(fid,','); end
         fprintf(fid,'\r\n');
     end
     
@@ -338,20 +371,20 @@ for fileNum=1:size(dataFiles,1)
     fprintf(fid,'\t"photoStim": %s,\r\n',str);
     
     %% add trial data
-     
+    
     str=strrep(jsonencode(trials),',"',sprintf(',\r\n\t\t"'));
     str=regexprep(str,'(?<={)"','\r\n\t\t"');
     str=regexprep(str,'},{','},\r\n\t\t{');
-    fprintf(fid,'\t"trials": %s\r\n',str); 
+    fprintf(fid,'\t"trials": %s\r\n',str);
     
-% close file
+    % close file
     fprintf(fid,'}');
     fclose(fid);
-
-%    %To read the file:
-%     foo = fileread(fullfile(rootDir,[recordingName '_recInfo.json']));
-%     foo = jsondecode(foo);
-
+    
+    %    %To read the file:
+    %     foo = fileread(fullfile(rootDir,[recordingName '_recInfo.json']));
+    %     foo = jsondecode(foo);
+    
     % TBD: insert session info in pipeline right here
     
 end
