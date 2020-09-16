@@ -351,13 +351,39 @@ for fileNum=1:size(dataFiles,1)
             end
         end
     end
+    
+    % determine adapter
+    if contains(ephys.adapter,'NN')
+        aptPrefix = 'NN_';
+    elseif contains(ephys.adapter,'CN')
+        aptPrefix = 'CNT_';
+    end
+    if contains(ephys.probe,'32')
+        aptSuffix = 'A32OM32';
+    elseif contains(ephys.probe,'16')
+        switch aptPrefix
+            case 'NN_'
+                aptSuffix = 'A32OM16x2';
+            case 'CNT_'
+                aptSuffix = 'A16OM16';
+        end
+    else
+        chNum = regexp(probeFileName,'\d+','match','once');
+        aptSuffix = ['A' chNum 'OM' chNum];
+    end
+    ephys.adapter = [aptPrefix aptSuffix];
+    
+    % strip probe name to keep either id number or equivalent
+    ephys.probe=ephys.probe(1:regexp(ephys.probe,'(?=\d )\w+','once'));
+    ephys.probe=strrep(ephys.probe,' ','');
+    
     % update with available real data
     if exist('laserTTL','var') && ~isempty(laserTTL)
         for protocolNum=1:size(laserTTL,2)
-        photoStim(protocolNum).pulseDur=mode(round(diff([laserTTL(protocolNum).start';...
-            laserTTL(protocolNum).end']),4));
-        photoStim(protocolNum).stimFreq=1/(mode(round(diff(laserTTL(protocolNum).start),4)));
-        photoStim.trainLength=numel(laserTTL(protocolNum).start);%'pulses_per_train'
+            photoStim(protocolNum).pulseDur=mode(round(diff([laserTTL(protocolNum).start';...
+                laserTTL(protocolNum).end']),4));
+            photoStim(protocolNum).stimFreq=1/(mode(round(diff(laserTTL(protocolNum).start),4)));
+            photoStim.trainLength=numel(laserTTL(protocolNum).start);%'pulses_per_train'
         end
     elseif exist('laserTTL','var') && isempty(laserTTL)
         photoStim.trainLength=[];
