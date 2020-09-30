@@ -366,7 +366,11 @@ for fileNum=1:size(dataFiles,1)
                 case 'NN_'
                     aptSuffix = 'A32OM32'; % there's also a 'A32OM16x2' but I don't used it
                 case 'CNT_'
-                    aptSuffix = 'A16OM16';
+                    if contains(ephys.adapter,'A16OM16') %if explicitly mentioned 
+                        aptSuffix = 'A16OM16';
+                    else
+                        aptSuffix = 'A32OM32'; %most recordings actually done with that one, as the 16Ch HS is too fat to fit well next to the holder.
+                    end
             end
         else
             chNum = regexp(probeFileName,'\d+','match','once');
