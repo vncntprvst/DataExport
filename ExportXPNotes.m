@@ -124,6 +124,11 @@ for procNum=1:numel(procedureIdx)
             depth=xpNotes.Depth(procedureRange(2:end));
             depthstr=string(depth); depthstr(isnan(depth))='    ';
             notes=xpNotes.Notes(procedureRange(2:end));
+            for lineNum=1:size(notes,1)
+                if any(regexp(notes(lineNum,:),'[\r\n]'))
+                    notes(lineNum,:)=regexprep(notes(lineNum,:),'[\r\n]','",\r\t\t\t"-\t":\t"');
+                end
+            end
             % join notes
             notes=strjoin(recMark + sprintf('\t') + depthstr + sprintf(""":\t""") + notes,...
                 '",\r\n\t\t\t"'); %[notes{:}];
