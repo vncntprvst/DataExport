@@ -115,9 +115,10 @@ for procNum=1:numel(procedureIdx)
             end
             fprintf(fid,'\r\n\t\t\t]\r\n');
             
-        %   2/ recordings (aka sessions in the pipeline, that groups 
+        %   2/ * recordings (aka sessions in the pipeline, that groups 
         %       ephys, video and other concurrent recordings together)
-        else
+        %      * some procedures that do not have a stereotax coordinates 
+        elseif any(ismember(sessionIdx, procedureRange(2:end))) || contains(char(xpNotes.Procedure(procedureIdx(procNum))),'headpost')
             recMark=xpNotes.Procedure(procedureRange(2:end));
             recMark(isundefined(recMark))=('-'); recMark=string(recMark);
             depth=xpNotes.Depth(procedureRange(2:end));
@@ -127,6 +128,34 @@ for procNum=1:numel(procedureIdx)
             notes=strjoin(recMark + sprintf('\t') + depthstr + sprintf(""":\t""") + notes,...
                 '",\r\n\t\t\t"'); %[notes{:}];
             fprintf(fid,',\r\n\t\t"Extended Notes":{\r\n\t\t\t"%s"}\r\n',notes);
+        
+        %   3/ Special case like FO implantation
+        else
+            fprintf(fid,',\r\n\t\t"Extended Notes": [\r\n');
+            subprocIdx=procedureRange(2:end);
+            for subprocNum=1:numel(subprocIdx)   
+                if isundefined(xpNotes.Procedure(subprocIdx(subprocNum)))
+                    xpNotes.Procedure(subprocIdx(subprocNum)) = xpNotes.Procedure(procedureIdx(procNum));
+                end
+                subprocedureInfo=strrep(jsonencode(xpNotes(subprocIdx(subprocNum),...
+                    [1,3:6])),',"',sprintf(',\r\n\t\t\t\t"'));
+                fprintf(fid,'\t\t\t\t%s',subprocedureInfo(2:end-2));
+                
+                if subprocNum<numel(subprocIdx)
+                    subprocRange=subprocIdx(subprocNum+1)-1;
+                else
+                    subprocRange=procedureIdx(find(procedureIdx>subprocIdx(end),1))-1;
+                end
+                
+                notes=xpNotes.Notes(subprocIdx(subprocNum)+1:subprocRange);
+                notes=[notes{:}];
+                if ~isempty(notes)
+                    fprintf(fid,[',\r\n\t\t\t\t"Extended Notes": "%s"'],notes);
+                end
+                fprintf(fid,'\r\n\t\t\t\t}');
+                if subprocNum<numel(subprocIdx); fprintf(fid,',\r\n'); end
+            end
+            fprintf(fid,'\r\n\t\t\t]\r\n');
         end     
         %% get info about sessions
         % a group of sessions from the same day is called a setlist and
