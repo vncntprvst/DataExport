@@ -329,7 +329,7 @@ for fileNum=1:size(dataFiles,1)
     end
     
     %% get info about recording location, laser, etc from notes
-    ephys=struct('probe', [],'adapter', [],'AP', [], 'ML', [],'depth', []);
+    ephys=struct('probe', [],'adapter', [],'AP', [], 'ML', [],'depth', [], 'theta', [], 'phi', []);
     photoStim=struct('protocolNum', [], 'stimPower', [], 'stimFreq', [],...
         'pulseDur', [], 'stimDevice', [], 'trainLength', []);
     
@@ -344,6 +344,9 @@ for fileNum=1:size(dataFiles,1)
         if ~isempty(session)
             ephys=session; ephys=rmfield(ephys,{'baseName','date','stimPower',...
                 'stimFreq','pulseDur', 'stimDevice'});ephys=ephys(1);
+            if ~isfield(ephys,'theta'); ephys.theta=[]; end
+            if ~isfield(ephys,'phy'); ephys.phy=[]; end    
+                
             photoStim=session; photoStim=rmfield(photoStim,{'baseName','date',...
                 'probe','adapter','AP', 'ML','depth'});
             for protocolNum=1:size(photoStim,2) % in case there are multiple stimulation protocols
@@ -390,6 +393,46 @@ for fileNum=1:size(dataFiles,1)
                 laserTTL(protocolNum).end']),4));
             photoStim(protocolNum).stimFreq=1/(mode(round(diff(laserTTL(protocolNum).start),4)));
             photoStim.trainLength=numel(laserTTL(protocolNum).start);%'pulses_per_train'
+            
+            %% add photostim location info if available
+            % stimulation can be through either: 
+                % 1/ an FO implant 
+                % 2/ FO on the probe 
+                % 3/ external (e.g., whisker pad)
+                implantProc=cellfun(@(proc) contains(proc.Procedure,'FO'), notes.Procedures);              
+                %if comment is empty, use default order
+                if isempty(str2num(photoStim.comments)) 
+                    if any(implantProc)
+                        photoStim.comments = 'implant';
+                    elseif contains(ephys.probe,{'Probe35','Probe36','FO'})
+                        photoStim.comments = 'probe';
+                    else %should ask
+                        photoStim.comments = 'external';
+                    end
+                end
+            switch photoStim.comments
+                case 'implant'
+                    implantNotes=notes.Procedures{implantProc}.ExtendedNotes;
+                    photoStim.photostim_location=struct(...
+                        'skullRef','Bregma',...
+                        'ap_location',implantNotes.APcoord,...
+                        'ml_location',implantNotes.MLcoord,...
+                        'depth',implantNotes.Depth,...
+                        'theta',str2num(regexp(implantNotes.Notes,'(?<= )\d+(?=d )','match','once')),...
+                        'phi',0,...
+                        'targetBrainArea','');
+                case 'probe'
+                    photoStim.photostim_location=struct(...
+                        'skullRef','Bregma',...
+                        'ap_location',ephys.AP,...
+                        'ml_location',ephys.ML,...
+                        'depth',ephys.depth,...
+                        'theta',ephys.theta,...
+                        'phi',ephys.phy,...
+                        'targetBrainArea','');
+                case 'external'
+                    % not in the brain
+            end              
         end
     elseif exist('laserTTL','var') && isempty(laserTTL)
         photoStim.trainLength=[];

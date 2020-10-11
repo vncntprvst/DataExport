@@ -49,7 +49,7 @@ procedureIdx=find(procedureIdx & ~sessionIdx);
 sessionIdx=find(sessionIdx);
 if ~isempty(sessionIdx)
     sessions=struct('baseName',[],'date',[],'probe',[],'adapter',[],'AP',[],'ML',[],'depth',[],...
-        'stimPower',[],'stimFreq',[],'pulseDur',[],'stimDevice',[]);
+        'stimPower',[],'stimFreq',[],'pulseDur',[],'stimDevice',[],'comments',[]);
 end
 
 % open file
@@ -182,7 +182,8 @@ for procNum=1:numel(procedureIdx)
                 sessions(sessionIds(sessionnNum)).stimPower=xpNotes.StimPower(sessionIdx(sessionIds(sessionnNum)));
                 sessions(sessionIds(sessionnNum)).stimFreq=xpNotes.StimFreq(sessionIdx(sessionIds(sessionnNum)));
                 sessions(sessionIds(sessionnNum)).pulseDur=xpNotes.PulseDur(sessionIdx(sessionIds(sessionnNum)));
-                sessions(sessionIds(sessionnNum)).stimDevice=xpNotes.Device(sessionIdx(sessionIds(sessionnNum)));            
+                sessions(sessionIds(sessionnNum)).stimDevice=xpNotes.Device(sessionIdx(sessionIds(sessionnNum))); 
+                sessions(sessionIds(sessionnNum)).comments=xpNotes.Comments(sessionIdx(sessionIds(sessionnNum))); 
             end
         end
     else
