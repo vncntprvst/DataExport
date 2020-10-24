@@ -1,6 +1,13 @@
 function ExportXPNotes(fileName, fileDir)
-% fileDir='cd';
-% fileName='Experiment Note Sheet - example.xlsx';
+if ~exist('fileDir','var')
+    fileDir=cd;
+end
+if ~exist('fileName','var')
+    fileList=dir(fileDir);
+    fileName=fileList(cellfun(@(fName) contains(fName,'Experiment Note Sheet'),...
+        {fileList.name})).name;
+end
+
 %% Convert notes spreadsheet to json file
 
 %% First read header
@@ -33,7 +40,7 @@ xpNotes = readtable(fullfile(fileDir, fileName), opts, "UseExcel", false);
 
 % Note on coordinates:
 % AP: anterior is positive
-% ML: right is positive 
+% ML: right is positive
 % DV: dorsal is positive (add - to notes)
 
 %% Write notes to json file
@@ -42,7 +49,7 @@ xpNotesHeader.Cagecard=num2str(xpNotesHeader.Cagecard);
 if xpNotesHeader.DOB < '01-Jan-2015'; xpNotesHeader.DOB(1)=''; end
 if nanmean(xpNotes.Depth)>0; xpNotes.Depth=-xpNotes.Depth; end
 
-% find procedures and sessions 
+%% find procedures and sessions
 procedureIdx=~isundefined(xpNotes.Procedure);
 sessionIdx=xpNotes.Procedure=='R'; % Ephys recordings should be noted as R
 procedureIdx=find(procedureIdx & ~sessionIdx);
@@ -52,16 +59,16 @@ if ~isempty(sessionIdx)
         'stimPower',[],'stimFreq',[],'pulseDur',[],'stimDevice',[],'comments',[]);
 end
 
-% open file
+%% open file
 fid  = fopen(fullfile(fileDir,[char(xpNotesHeader.SubjectID) '_notes.json']),'w');
 fprintf(fid,'{\r\n');
 
-% first print header variables
+%% first print header variables
 fprintf(fid,'\t"Header": {\r\n');
 str=strrep(jsonencode(xpNotesHeader),',"',sprintf(',\r\n\t\t"'));
 fprintf(fid,'%s%s%s',sprintf('\t\t'), str(3:end-2), sprintf('\r\n\t},\r\n'));
 
-% then print notes
+%% then print notes
 procedureRange=[];
 fprintf(fid,'\t"Procedures": [\r\n');
 for procNum=1:numel(procedureIdx)
@@ -72,7 +79,7 @@ for procNum=1:numel(procedureIdx)
     % Special procedures for injections and fiber optic implantation
     if ismember(xpNotes.Procedure(procedureIdx(procNum)),{'injection','implant FO'})
         specProcIdx=procedureIdx(...
-        ~contains(string(xpNotes.Procedure(procedureIdx)),{'injection','fiber optic'}));
+            ~contains(string(xpNotes.Procedure(procedureIdx)),{'injection','fiber optic'}));
         procedureRange=procedureIdx(procNum):...
             specProcIdx(find(specProcIdx>procedureIdx(procNum),1))-1;
     else
@@ -85,16 +92,16 @@ for procNum=1:numel(procedureIdx)
     % print procedure type, date and head comment
     procedureInfo=strrep(jsonencode(xpNotes(procedureIdx(procNum),[1,2,6])),',"',sprintf(',\r\n\t\t"'));
     fprintf(fid,'\t\t%s',procedureInfo(2:end-2));
-
+    
     % if there are other notes, add them
-    if numel(procedureRange)>1 
+    if numel(procedureRange)>1
         % There are notes associated with the procedure.
-        % Two cases: 
+        % Two cases:
         %   1/ any procedure listed above, excluding recordings
-        if any(ismember(procedureIdx,procedureRange(2:end))) 
+        if any(ismember(procedureIdx,procedureRange(2:end)))
             fprintf(fid,',\r\n\t\t"Subprocedures": [\r\n');
             subprocIdx=procedureIdx(ismember(procedureIdx,procedureRange(2:end)));
-            for subprocNum=1:numel(subprocIdx)               
+            for subprocNum=1:numel(subprocIdx)
                 subprocedureInfo=strrep(jsonencode(xpNotes(subprocIdx(subprocNum),...
                     [1,3:6])),',"',sprintf(',\r\n\t\t\t\t"'));
                 fprintf(fid,'\t\t\t\t%s',subprocedureInfo(2:end-2));
@@ -115,9 +122,9 @@ for procNum=1:numel(procedureIdx)
             end
             fprintf(fid,'\r\n\t\t\t]\r\n');
             
-        %   2/ * recordings (aka sessions in the pipeline, that groups 
-        %       ephys, video and other concurrent recordings together)
-        %      * some procedures that do not have a stereotax coordinates 
+            %   2/ * recordings (aka sessions in the pipeline, that groups
+            %       ephys, video and other concurrent recordings together)
+            %      * some procedures that do not have a stereotax coordinates
         elseif any(ismember(sessionIdx, procedureRange(2:end))) || contains(char(xpNotes.Procedure(procedureIdx(procNum))),'headpost')
             recMark=xpNotes.Procedure(procedureRange(2:end));
             recMark(isundefined(recMark))=('-'); recMark=string(recMark);
@@ -133,12 +140,12 @@ for procNum=1:numel(procedureIdx)
             notes=strjoin(recMark + sprintf('\t') + depthstr + sprintf(""":\t""") + notes,...
                 '",\r\n\t\t\t"'); %[notes{:}];
             fprintf(fid,',\r\n\t\t"Extended Notes":{\r\n\t\t\t"%s"}\r\n',notes);
-        
-        %   3/ Special case like FO implantation
+            
+            %   3/ Special case like FO implantation
         else
             fprintf(fid,',\r\n\t\t"Extended Notes": [\r\n');
             subprocIdx=procedureRange(2:end);
-            for subprocNum=1:numel(subprocIdx)   
+            for subprocNum=1:numel(subprocIdx)
                 if isundefined(xpNotes.Procedure(subprocIdx(subprocNum)))
                     xpNotes.Procedure(subprocIdx(subprocNum)) = xpNotes.Procedure(procedureIdx(procNum));
                 end
@@ -161,17 +168,30 @@ for procNum=1:numel(procedureIdx)
                 if subprocNum<numel(subprocIdx); fprintf(fid,',\r\n'); end
             end
             fprintf(fid,'\r\n\t\t\t]\r\n');
-        end     
+        end
         %% get info about sessions
         % a group of sessions from the same day is called a setlist and
         % will have the same date
         if any(ismember(sessionIdx,procedureRange(2:end)))
             sessionIds=find(ismember(sessionIdx,procedureRange(2:end)));
-            for sessionnNum=1:numel(sessionIds) 
+            for sessionnNum=1:numel(sessionIds)
                 sessions(sessionIds(sessionnNum)).baseName=[...
                     xpNotesHeader.SubjectID{1} '_',...
                     char(datetime(xpNotes.Date(procedureIdx(procNum)),'Format','MMdd')) '_'...
                     num2str(-xpNotes.Depth(sessionIdx(sessionIds(sessionnNum))))];
+                if sessionnNum>1 && strcmp(sessions(sessionIds(sessionnNum)).baseName,...
+                        sessions(sessionIds(sessionnNum-1)).baseName)
+                    if ~isempty(xpNotes.Comments(sessionIdx(sessionIds(sessionnNum))))
+                        sessions(sessionIds(sessionnNum)).baseName= [...
+                            sessions(sessionIds(sessionnNum)).baseName...
+                            '_' char(xpNotes.Comments(sessionIdx(sessionIds(sessionnNum))))];
+                    else
+                        sessions(sessionIds(sessionnNum)).baseName=[...
+                            xpNotesHeader.SubjectID{1} '_',...
+                            char(datetime(xpNotes.Date(procedureIdx(procNum)),'Format','MMdd')) '_'...
+                            num2str(-xpNotes.Depth(sessionIdx(sessionIds(sessionnNum)))+1)];
+                    end
+                end
                 sessions(sessionIds(sessionnNum)).date=xpNotes.Date(procedureIdx(procNum));
                 recNotes=xpNotes.Notes(procedureIdx(procNum));
                 sessions(sessionIds(sessionnNum)).probe=regexp(recNotes,'.+(?= &)','match','once');
@@ -182,8 +202,8 @@ for procNum=1:numel(procedureIdx)
                 sessions(sessionIds(sessionnNum)).stimPower=xpNotes.StimPower(sessionIdx(sessionIds(sessionnNum)));
                 sessions(sessionIds(sessionnNum)).stimFreq=xpNotes.StimFreq(sessionIdx(sessionIds(sessionnNum)));
                 sessions(sessionIds(sessionnNum)).pulseDur=xpNotes.PulseDur(sessionIdx(sessionIds(sessionnNum)));
-                sessions(sessionIds(sessionnNum)).stimDevice=xpNotes.Device(sessionIdx(sessionIds(sessionnNum))); 
-                sessions(sessionIds(sessionnNum)).comments=xpNotes.Comments(sessionIdx(sessionIds(sessionnNum))); 
+                sessions(sessionIds(sessionnNum)).stimDevice=xpNotes.Device(sessionIdx(sessionIds(sessionnNum)));
+                sessions(sessionIds(sessionnNum)).comments=xpNotes.Comments(sessionIdx(sessionIds(sessionnNum)));
             end
         end
     else
@@ -197,9 +217,33 @@ for procNum=1:numel(procedureIdx)
 end
 % close Procedures list
 fprintf(fid,'\t],\r\n');
- 
-%% Write down Sessions
+
+%% Finally, write down Sessions
 if exist('sessions','var')
+    % validate files existence
+    fileList=dir([fileDir filesep '**' filesep]);
+    fileList=fileList(~[fileList.isdir]);
+    [~,fileList,] = cellfun(@(fileName) fileparts(fileName), {fileList.name}, 'UniformOutput', false);
+    fileList=unique(fileList');
+    
+    for fileNum=1:size(sessions,2)
+        fileIdx=cellfun(@(fileName) strcmp(fileName,sessions(fileNum).baseName), fileList);
+        switch sum(fileIdx)
+            case 0
+                fileIdx=cellfun(@(fileName) contains(fileName,sessions(fileNum).baseName), fileList);
+                if ~any(fileIdx)
+                    disp(['File ' sessions(fileNum).baseName ' could not be located']);
+                else
+                    recList=fileList(fileIdx);
+                    lengthfileName=cellfun(@length, recList);
+                    sessions(fileNum).baseName=recList{lengthfileName==min(lengthfileName)};
+                end
+            case 1 %fine
+            otherwise
+                disp(['Files ' fileList{fileIdx} ' have the same basename']);
+        end
+    end
+    
     fprintf(fid,'\t"Sessions": [ \r\n');
     str=strrep(jsonencode(sessions),',"',sprintf(',\r\n\t\t"'));
     str=strrep(str,'},{',sprintf('\r\n\t\t},\r\n\t\t{'));
