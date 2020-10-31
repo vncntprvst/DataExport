@@ -7,7 +7,7 @@ try
     dirBranch=regexp(strrep(dname,'-','_'),['\' filesep '\w+'],'match');
     rec.dirName=dname;
     rec.fileName=fname;
-    disp(['loading ' dname fname]);
+    disp(['loading ' dname filesep fname]);
     if contains(fname,'.bin')
         %% Binary file from Intan/Paul's Julia interface
         prompt = {'Enter number of recorded channels:'};

@@ -1,7 +1,5 @@
 function [dataFiles,allRecInfo]=BatchExport(exportDir)
-% not finalized yet
-% if export for SC, must not be run as root (so start Matlab from /bin/matlab as user)
-% Vincent Prevosto 10/16/2018
+
 rootDir=cd;
 if ~isfolder('SpikeSorting')
     %create export directory
@@ -39,10 +37,37 @@ if ~isempty(probeFile{:})
     probeFileName=probeFile{1, 1}.name;
     probePathName=probeFile{1, 1}.folder;
 else
+    sessionsFolder=regexp(rootDir,['(?<=\' filesep ')\w+$'],'match','once');
     filePath  = mfilename('fullpath');
     filePath = regexp(filePath,['.+(?=\' filesep '.+$)'],'match','once'); %removes filename
-    [probeFileName,probePathName] = uigetfile('*.json','Select the .json probe file',...
-        fullfile(filePath, 'probemaps'));
+    probePathName = fullfile(filePath, 'probemaps');
+    % check if info is in subject json file
+    parentList=dir('..');
+    notesIdx=cellfun(@(fName) contains(fName,'_notes.json'), {parentList.name});
+    if any(notesIdx)
+        %get session notes
+            notesFile=fullfile(parentList(notesIdx).folder,parentList(notesIdx).name);
+            notes=jsondecode(fileread(notesFile));
+        % get probe info
+        sessionIdx=contains({notes.Sessions.baseName}, sessionsFolder);
+        probe=notes.Sessions(find(sessionIdx,1)).probe;
+        %load probe list
+        probeList = fileread(fullfile(probePathName, 'probeList.json'));
+        probeList = jsondecode(probeList);
+        %find probe type
+        probeTypeIdx=cellfun(@(probeID) contains(strrep(probe,' ',''),probeID),{probeList.probeLabel});
+        probeType=probeList(probeTypeIdx).probeType;
+        % find adapter type
+        adapter=notes.Sessions(find(sessionIdx,1)).adapter;
+        adapter=strrep(adapter,'Adapter','Adaptor');
+        adapter=strrep(adapter,' ','');
+        % combine 
+        probeFileName=[probeType '_' adapter '.json'];      
+    else
+    %or ask
+    [probeFileName,probePathName] = uigetfile('*.json',['Select the .json probe file for '...
+            sessionsFolder],probePathName);
+    end   
     copyfile(fullfile(probePathName,probeFileName),fullfile(cd,'SpikeSorting',probeFileName));
 end
 
@@ -89,19 +114,20 @@ for fileNum=1:size(dataFiles,1)
     
     %% load other data
     NEVdata=openNEV(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'nev']));
-    fsIdx=cellfun(@(x) contains(x','FlowSensor'),{NEVdata.ElectrodesInfo.ElectrodeLabel});
-    if any(fsIdx)
-        fsData = openNSx(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'ns4']));
-        fsIdx = cellfun(@(x) contains(x,'FlowSensor'),{fsData.ElectrodesInfo.Label});
-        fsData = fsData.Data(fsIdx,:);
+    if isfield(NEVdata.ElectrodesInfo,'ElectrodeLabel')
+        fsIdx=cellfun(@(x) contains(x','FlowSensor'),{NEVdata.ElectrodesInfo.ElectrodeLabel});
+        if any(fsIdx)
+            fsData = openNSx(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'ns4']));
+            fsIdx = cellfun(@(x) contains(x,'FlowSensor'),{fsData.ElectrodesInfo.Label});
+            fsData = fsData.Data(fsIdx,:);
+        end
+        reIdx = cellfun(@(x) contains(x','RotaryEncoder'),{NEVdata.ElectrodesInfo.ElectrodeLabel});
+        if any(reIdx)
+            reData = openNSx(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'ns2']));
+            reIdx = cellfun(@(x) contains(x,'RotaryEncoder'),{reData.ElectrodesInfo.Label});
+            reData = reData.Data(reIdx,:);
+        end
     end
-    reIdx = cellfun(@(x) contains(x','RotaryEncoder'),{NEVdata.ElectrodesInfo.ElectrodeLabel});
-    if any(reIdx)
-        reData = openNSx(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'ns2']));
-        reIdx = cellfun(@(x) contains(x,'RotaryEncoder'),{reData.ElectrodesInfo.Label});
-        reData = reData.Data(reIdx,:);
-    end
-    
     vSyncTTLDir=cd;
     %% get recording name
     % (in case they're called 'continuous' or some bland thing like this)

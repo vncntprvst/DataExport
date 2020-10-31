@@ -1,0 +1,19 @@
+[{"probeLabel":"Probe34","probeType":"CNT32Ch_PSeries"
+	},
+	{"probeLabel":"Probe35","probeType":"NN32Ch_Buzsaki32"
+	},
+	{"probeLabel":"Probe36","probeType":"NN_Probe36"
+	},
+	{"probeLabel":"Probe37","probeType":"CNT32Ch_PSeries"
+	},
+	{"probeLabel":"Probe38","probeType":"CNT32Ch_PSeries"
+	},
+	{"probeLabel":"Probe39","probeType":"CNT32Ch_PSeries"
+	},
+	{"probeLabel":"Probe40","probeType":"CNT16Ch_PSeries"
+	},
+	{"probeLabel":"Probe44","probeType":"CNT32Ch_PSeries"
+	},
+	{"probeLabel":"Probe45","probeType":"CNT32Ch_PSeries"
+	},
+	{"probeLabel":"Probe46","probeType":"CNT32Ch_PSeries"}]

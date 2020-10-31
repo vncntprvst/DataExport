@@ -4,7 +4,8 @@ if ~exist('fileDir','var')
 end
 if ~exist('fileName','var')
     fileList=dir(fileDir);
-    fileName=fileList(cellfun(@(fName) contains(fName,'Experiment Note Sheet'),...
+    fileName=fileList(cellfun(@(fName) contains(fName,'Experiment Note Sheet') &&...
+        ~contains(fName,'old format'),...
         {fileList.name})).name;
 end
 
@@ -228,8 +229,7 @@ if exist('sessions','var')
     
     for fileNum=1:size(sessions,2)
         fileIdx=cellfun(@(fileName) strcmp(fileName,sessions(fileNum).baseName), fileList);
-        switch sum(fileIdx)
-            case 0
+        if ~any(fileIdx)
                 fileIdx=cellfun(@(fileName) contains(fileName,sessions(fileNum).baseName), fileList);
                 if ~any(fileIdx)
                     disp(['File ' sessions(fileNum).baseName ' could not be located']);
@@ -238,8 +238,7 @@ if exist('sessions','var')
                     lengthfileName=cellfun(@length, recList);
                     sessions(fileNum).baseName=recList{lengthfileName==min(lengthfileName)};
                 end
-            case 1 %fine
-            otherwise
+        elseif sum(fileIdx)>1
                 disp(['Files ' fileList{fileIdx} ' have the same basename']);
         end
     end
