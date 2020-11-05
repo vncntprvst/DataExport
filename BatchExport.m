@@ -276,7 +276,7 @@ for fileNum=1:size(dataFiles,1)
         fwrite(fileID,laserTTL.start','single'); %laserTTL.end'
         fclose(fileID);
         %save timestamps in seconds units as .csv
-        dlmwrite([recordingName '_trial.csv'],laserTTL.start,...
+        dlmwrite([recordingName '_export_trial.csv'],laserTTL.start,...
             'delimiter', ',', 'precision', '%5.4f');
         recInfo.export.TTLs={[recordingName '_TTLs.dat'];[recordingName '_trial.csv']}; %[recordingName '_export_trial.mat']};
     end
@@ -332,11 +332,11 @@ for fileNum=1:size(dataFiles,1)
         fileID = fopen([recordingName '_actuators_TS.dat'],'w');
         fwrite(fileID,[actuatorTTL.start';actuatorTTL.end'],'single'); %
         fclose(fileID);
-        %save timestamps in seconds units as .csv (supersedes lasers if needed)
-        dlmwrite([recordingName '_trial.csv'],[actuatorTTL.start;actuatorTTL.end]',...
+        %save timestamps in seconds units as .csv (supersedes lasers if needed: rename as _trial.csv)
+        dlmwrite([recordingName '_actuators_TS.csv'],[actuatorTTL.start;actuatorTTL.end]',...
             'delimiter', ',', 'precision', '%5.4f');
         recInfo.export.actuators_TS={[recordingName '_actuators_TS.dat'];...
-            [recordingName '_trial.csv']}; %[recordingName '_export_trial.mat']};
+            [recordingName '_actuators_TS.csv']}; %[recordingName '_export_trial.mat']};
     end
     
     
