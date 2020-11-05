@@ -1,7 +1,5 @@
 function [dataFiles,allRecInfo]=BatchExport(exportDir)
-% not finalized yet
-% if export for SC, must not be run as root (so start Matlab from /bin/matlab as user)
-% Vincent Prevosto 10/16/2018
+
 rootDir=cd;
 if ~isfolder('SpikeSorting')
     %create export directory
@@ -11,7 +9,8 @@ dataFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.dat','*raw.kwd','*RAW*Ch*.nex','*.ns6'},'UniformOutput', false);
 dataFiles=vertcat(dataFiles{~cellfun('isempty',dataFiles)});
 % just in case other export / spike sorting has been performed, do not include those files
-dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_export';'_TTLs'; '_trialTTLs'; '_vSyncTTLs';...
+dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_export';'_TTLs'; '_trialTTLs';...
+    '_vSyncTTLs';'_actuators_TS';...
     'temp_wh';'_nopp.dat';'_all_sc';'_VideoFrameTimes';'_Wheel'}),...
     {dataFiles.name})); %by filename
 dataFiles=dataFiles(~cellfun(@(flnm) contains(flnm,{'_SC';'_JR';'_ML'}),...
@@ -38,10 +37,37 @@ if ~isempty(probeFile{:})
     probeFileName=probeFile{1, 1}.name;
     probePathName=probeFile{1, 1}.folder;
 else
+    sessionsFolder=regexp(rootDir,['(?<=\' filesep ')\w+$'],'match','once');
     filePath  = mfilename('fullpath');
     filePath = regexp(filePath,['.+(?=\' filesep '.+$)'],'match','once'); %removes filename
-    [probeFileName,probePathName] = uigetfile('*.json','Select the .json probe file',...
-        fullfile(filePath, 'probemaps'));
+    probePathName = fullfile(filePath, 'probemaps');
+    % check if info is in subject json file
+    parentList=dir('..');
+    notesIdx=cellfun(@(fName) contains(fName,'_notes.json'), {parentList.name});
+    if any(notesIdx)
+        %get session notes
+            notesFile=fullfile(parentList(notesIdx).folder,parentList(notesIdx).name);
+            notes=jsondecode(fileread(notesFile));
+        % get probe info
+        sessionIdx=contains({notes.Sessions.baseName}, sessionsFolder);
+        probe=notes.Sessions(find(sessionIdx,1)).probe;
+        %load probe list
+        probeList = fileread(fullfile(probePathName, 'probeList.json'));
+        probeList = jsondecode(probeList);
+        %find probe type
+        probeTypeIdx=cellfun(@(probeID) contains(strrep(probe,' ',''),probeID),{probeList.probeLabel});
+        probeType=probeList(probeTypeIdx).probeType;
+        % find adapter type
+        adapter=notes.Sessions(find(sessionIdx,1)).adapter;
+        adapter=strrep(adapter,'Adapter','Adaptor');
+        adapter=strrep(adapter,' ','');
+        % combine 
+        probeFileName=[probeType '_' adapter '.json'];      
+    else
+    %or ask
+    [probeFileName,probePathName] = uigetfile('*.json',['Select the .json probe file for '...
+            sessionsFolder],probePathName);
+    end   
     copyfile(fullfile(probePathName,probeFileName),fullfile(cd,'SpikeSorting',probeFileName));
 end
 
@@ -67,9 +93,14 @@ for fileNum=1:size(dataFiles,1)
             case 2
                 laserTTL=TTLdata{1}; %used to be behavior trials in older recordings
                 videoTTL=TTLdata{2};
-            case 3 %third is superfluous for now
-                laserTTL=[];
+            case 3 % other TTL (e.g., touch stim)
+                if ~isempty(TTLdata{1}.TTLtimes)
+                    laserTTL=TTLdata{1};
+                else
+                    laserTTL=[];
+                end
                 videoTTL=TTLdata{2};
+                actuatorTTL = TTLdata{3};
             otherwise
                 if ~iscell(TTLdata)
                     videoTTL=TTLdata;
@@ -83,19 +114,20 @@ for fileNum=1:size(dataFiles,1)
     
     %% load other data
     NEVdata=openNEV(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'nev']));
-    fsIdx=cellfun(@(x) contains(x','FlowSensor'),{NEVdata.ElectrodesInfo.ElectrodeLabel});
-    if any(fsIdx)
-        fsData = openNSx(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'ns4']));
-        fsIdx = cellfun(@(x) contains(x,'FlowSensor'),{fsData.ElectrodesInfo.Label});
-        fsData = fsData.Data(fsIdx,:);
+    if isfield(NEVdata.ElectrodesInfo,'ElectrodeLabel')
+        fsIdx=cellfun(@(x) contains(x','FlowSensor'),{NEVdata.ElectrodesInfo.ElectrodeLabel});
+        if any(fsIdx)
+            fsData = openNSx(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'ns4']));
+            fsIdx = cellfun(@(x) contains(x,'FlowSensor'),{fsData.ElectrodesInfo.Label});
+            fsData = fsData.Data(fsIdx,:);
+        end
+        reIdx = cellfun(@(x) contains(x','RotaryEncoder'),{NEVdata.ElectrodesInfo.ElectrodeLabel});
+        if any(reIdx)
+            reData = openNSx(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'ns2']));
+            reIdx = cellfun(@(x) contains(x,'RotaryEncoder'),{reData.ElectrodesInfo.Label});
+            reData = reData.Data(reIdx,:);
+        end
     end
-    reIdx = cellfun(@(x) contains(x','RotaryEncoder'),{NEVdata.ElectrodesInfo.ElectrodeLabel});
-    if any(reIdx)
-        reData = openNSx(fullfile(dataFiles(fileNum).folder,[dataFiles(fileNum).name(1:end-3), 'ns2']));
-        reIdx = cellfun(@(x) contains(x,'RotaryEncoder'),{reData.ElectrodesInfo.Label});
-        reData = reData.Data(reIdx,:);
-    end
-    
     vSyncTTLDir=cd;
     %% get recording name
     % (in case they're called 'continuous' or some bland thing like this)
@@ -224,22 +256,27 @@ for fileNum=1:size(dataFiles,1)
     
     %% save photostim TTLs in second resolution
     if exist('laserTTL','var') && ~isempty(laserTTL) && ~isempty(laserTTL(1).start)
-        % discard native sr timestamps
-        laserTTL=laserTTL([laserTTL.samplingRate]==1000);
-        %swap dimensions
+        % discard native sr timestamps and convert to seconds if needed
+        if any([laserTTL.samplingRate]==1)
+            laserTTL=laserTTL([laserTTL.samplingRate]==1);
+        else
+            laserTTL=laserTTL([laserTTL.samplingRate]==1000);
+            % convert timebase to seconds
+            laserTTL.start=single(laserTTL.start)/laserTTL.samplingRate;
+            laserTTL.end=single(laserTTL.end)/laserTTL.samplingRate;
+        end 
+        %swap dimensions if necessary
         if size(laserTTL.start,1)<size(laserTTL.start,2)
             laserTTL.start=laserTTL.start';
             laserTTL.end=laserTTL.end';
         end
-        % convert to seconds
-        laserTTL.start=single(laserTTL.start)/laserTTL.samplingRate;
-        laserTTL.end=single(laserTTL.end)/laserTTL.samplingRate;
+
         % save binary file
         fileID = fopen([recordingName '_TTLs.dat'],'w');
         fwrite(fileID,laserTTL.start','single'); %laserTTL.end'
         fclose(fileID);
         %save timestamps in seconds units as .csv
-        dlmwrite([recordingName '_trial.csv'],laserTTL.start,...
+        dlmwrite([recordingName '_export_trial.csv'],laserTTL.start,...
             'delimiter', ',', 'precision', '%5.4f');
         recInfo.export.TTLs={[recordingName '_TTLs.dat'];[recordingName '_trial.csv']}; %[recordingName '_export_trial.mat']};
     end
@@ -248,12 +285,17 @@ for fileNum=1:size(dataFiles,1)
     if exist('videoTTL','var') || (exist('frameCaptureTime','var') && ~isempty(frameCaptureTime))
         fileID = fopen([recordingName '_vSyncTTLs.dat'],'w');
         if exist('videoTTL','var') && isfield(videoTTL,'start') && ~isempty(videoTTL(1).start)
-            % discard native sr timestamps
-            videoTTL=videoTTL([videoTTL.samplingRate]==1000);
-            %we want vertical arrays
+            % discard native sr timestamps and convert to seconds if needed
+            if any([videoTTL.samplingRate]==1)
+                videoTTL=videoTTL([videoTTL.samplingRate]==1);
+            else
+                videoTTL=videoTTL([videoTTL.samplingRate]==1000);
+                % convert timebase to seconds
+                videoTTL.start=single(videoTTL.start)/videoTTL.samplingRate;
+            end
+            %swap dimensions if necessary
             if size(videoTTL.start,2)>size(videoTTL.start,1); videoTTL.start=videoTTL.start'; end
-            % convert to seconds
-            videoTTL.start=single(videoTTL.start)/videoTTL.samplingRate;
+            
             frameCaptureTime=videoTTL.start;
             %             frameCaptureTime=[round(TTLtimes(1));round(TTLtimes(1))+cumsum(round(diff(TTLtimes)))]; %exact rounding
         elseif exist('videoTTL','var')
@@ -268,6 +310,35 @@ for fileNum=1:size(dataFiles,1)
         recInfo.export.vSync=[recordingName '_vSyncTTLs.dat'];
         copyfile([recordingName '_vSyncTTLs.dat'],fullfile(rootDir,[recordingName '_vSyncTTLs.dat']));
     end
+    
+    %% save
+    if exist('actuatorTTL','var') && ~isempty(actuatorTTL) && ~isempty(actuatorTTL(1).start)
+        % discard native sr timestamps and convert to seconds if needed
+        if any([actuatorTTL.samplingRate]==1)
+            actuatorTTL=actuatorTTL([actuatorTTL.samplingRate]==1);
+        else
+            actuatorTTL=actuatorTTL([actuatorTTL.samplingRate]==1000);
+            % convert timebase to seconds
+            actuatorTTL.start=single(actuatorTTL.start)/actuatorTTL.samplingRate;
+            actuatorTTL.end=single(actuatorTTL.end)/actuatorTTL.samplingRate;
+        end 
+        %swap dimensions if necessary
+        if size(actuatorTTL.start,1)<size(actuatorTTL.start,2)
+            actuatorTTL.start=actuatorTTL.start';
+            actuatorTTL.end=actuatorTTL.end';
+        end
+
+        % save binary file
+        fileID = fopen([recordingName '_actuators_TS.dat'],'w');
+        fwrite(fileID,[actuatorTTL.start';actuatorTTL.end'],'single'); %
+        fclose(fileID);
+        %save timestamps in seconds units as .csv (supersedes lasers if needed: rename as _trial.csv)
+        dlmwrite([recordingName '_actuators_TS.csv'],[actuatorTTL.start;actuatorTTL.end]',...
+            'delimiter', ',', 'precision', '%5.4f');
+        recInfo.export.actuators_TS={[recordingName '_actuators_TS.dat'];...
+            [recordingName '_actuators_TS.csv']}; %[recordingName '_export_trial.mat']};
+    end
+    
     
     %% try to find likely companion video file
     if ~isempty(videoFiles)
@@ -338,7 +409,7 @@ for fileNum=1:size(dataFiles,1)
     if any(exist(notesFile,'file'))
         notes=jsondecode(fileread(notesFile));
         % get info about that session
-        sessionIdx=contains({notes.Sessions.baseName}, recInfo.baseName);
+        sessionIdx=strcmp({notes.Sessions.baseName}, recInfo.baseName);
         session=notes.Sessions(sessionIdx);
         % allocate data
         if ~isempty(session)
@@ -392,7 +463,7 @@ for fileNum=1:size(dataFiles,1)
             photoStim(protocolNum).pulseDur=mode(round(diff([laserTTL(protocolNum).start';...
                 laserTTL(protocolNum).end']),4));
             photoStim(protocolNum).stimFreq=1/(mode(round(diff(laserTTL(protocolNum).start),4)));
-            photoStim.trainLength=numel(laserTTL(protocolNum).start);%'pulses_per_train'
+            photoStim(protocolNum).trainLength=numel([laserTTL(protocolNum).start]);%'pulses_per_train'
             
             %% add photostim location info if available
             % stimulation can be through either: 
@@ -401,7 +472,7 @@ for fileNum=1:size(dataFiles,1)
                 % 3/ external (e.g., whisker pad)
                 implantProc=cellfun(@(proc) contains(proc.Procedure,'FO'), notes.Procedures);              
                 %if comment is empty, use default order
-                if isempty(str2num(photoStim.comments)) 
+                if isempty(str2num(photoStim(protocolNum).comments)) 
                     if any(implantProc)
                         photoStim.comments = 'implant';
                     elseif contains(ephys.probe,{'Probe35','Probe36','FO'})
@@ -410,7 +481,7 @@ for fileNum=1:size(dataFiles,1)
                         photoStim.comments = 'external';
                     end
                 end
-            switch photoStim.comments
+            switch photoStim(protocolNum).comments
                 case 'implant'
                     implantNotes=notes.Procedures{implantProc}.ExtendedNotes;
                     photoStim.photostim_location=struct(...

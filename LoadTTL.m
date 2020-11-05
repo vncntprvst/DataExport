@@ -59,7 +59,6 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
     %         10 kS/s: Records at 10k samples/second. Saved as NS4 file. e.g., TTLs
     %         30 kS/s: Records at 30k samples/second. Saved as NS5 file.
     %         Raw: Records the raw data at 30k samples/second. Saved as NS6 file.
-    TTLchannelIDs = [129, 130, 131];
     
     %% check NEV file first, even if NS file is in argument
     % NEV files contain records of digital pin events, where TTL should be
@@ -91,7 +90,11 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
                 end
                 try
                     TTLs{size(TTL_ID,2)-TTLChan+1}=...
-                        ConvTTLtoTrials(digInTimes(TTLIdx),TTLdur,sampleRate);
+                        struct('TTLtimes',digInTimes(TTLIdx)/sampleRate,...
+                        'samplingRate',1,...
+                        'start',digInTimes(TTLIdx)'/sampleRate,...
+                        'end',digInTimes(TTLIdx)'/sampleRate + (TTLdur/sampleRate));
+                        %ConvTTLtoTrials(digInTimes(TTLIdx),TTLdur,sampleRate);
                 catch
                     continue;
                 end
@@ -132,7 +135,7 @@ elseif contains(fName,'.ns') || contains(fName,'.nev')
         % openNSx returns  struct('MetaTags',[],'Data',[], 'RawData', []);
         % in some other version, openNSx also returned 'ElectrodesInfo'
         %       %send sync TTL to AIN1, which is Channel 129. AIN2 is 130. AIN3 is 131
-        
+        TTLchannelIDs = [129, 130, 131];
         if any(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs)) %check that it is present
             analogChannels=find(ismember([analogChannel.MetaTags.ChannelID], TTLchannelIDs));
             %         if sum(cellfun(@(x)
