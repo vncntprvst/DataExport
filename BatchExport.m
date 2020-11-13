@@ -46,8 +46,8 @@ else
     notesIdx=cellfun(@(fName) contains(fName,'_notes.json'), {parentList.name});
     if any(notesIdx)
         %get session notes
-            notesFile=fullfile(parentList(notesIdx).folder,parentList(notesIdx).name);
-            notes=jsondecode(fileread(notesFile));
+        notesFile=fullfile(parentList(notesIdx).folder,parentList(notesIdx).name);
+        notes=jsondecode(fileread(notesFile));
         % get probe info
         sessionIdx=contains({notes.Sessions.baseName}, sessionsFolder);
         probe=notes.Sessions(find(sessionIdx,1)).probe;
@@ -61,13 +61,13 @@ else
         adapter=notes.Sessions(find(sessionIdx,1)).adapter;
         adapter=strrep(adapter,'Adapter','Adaptor');
         adapter=strrep(adapter,' ','');
-        % combine 
-        probeFileName=[probeType '_' adapter '.json'];      
+        % combine
+        probeFileName=[probeType '_' adapter '.json'];
     else
-    %or ask
-    [probeFileName,probePathName] = uigetfile('*.json',['Select the .json probe file for '...
+        %or ask
+        [probeFileName,probePathName] = uigetfile('*.json',['Select the .json probe file for '...
             sessionsFolder],probePathName);
-    end   
+    end
     copyfile(fullfile(probePathName,probeFileName),fullfile(cd,'SpikeSorting',probeFileName));
 end
 
@@ -75,6 +75,7 @@ end
 for fileNum=1:size(dataFiles,1)
     try
         [recInfo,recordings,spikes,TTLdata] = LoadEphysData(dataFiles(fileNum).name,dataFiles(fileNum).folder);
+        
         switch size(TTLdata,2) %% Convention : 1 - Laser / 2 - Camera 1 / 3 - Session trials
             case 1
                 if isfield(TTLdata,'TTLChannel')
@@ -264,13 +265,13 @@ for fileNum=1:size(dataFiles,1)
             % convert timebase to seconds
             laserTTL.start=single(laserTTL.start)/laserTTL.samplingRate;
             laserTTL.end=single(laserTTL.end)/laserTTL.samplingRate;
-        end 
+        end
         %swap dimensions if necessary
         if size(laserTTL.start,1)<size(laserTTL.start,2)
             laserTTL.start=laserTTL.start';
             laserTTL.end=laserTTL.end';
         end
-
+        
         % save binary file
         fileID = fopen([recordingName '_TTLs.dat'],'w');
         fwrite(fileID,laserTTL.start','single'); %laserTTL.end'
@@ -321,13 +322,13 @@ for fileNum=1:size(dataFiles,1)
             % convert timebase to seconds
             actuatorTTL.start=single(actuatorTTL.start)/actuatorTTL.samplingRate;
             actuatorTTL.end=single(actuatorTTL.end)/actuatorTTL.samplingRate;
-        end 
+        end
         %swap dimensions if necessary
         if size(actuatorTTL.start,1)<size(actuatorTTL.start,2)
             actuatorTTL.start=actuatorTTL.start';
             actuatorTTL.end=actuatorTTL.end';
         end
-
+        
         % save binary file
         fileID = fopen([recordingName '_actuators_TS.dat'],'w');
         fwrite(fileID,[actuatorTTL.start';actuatorTTL.end'],'single'); %
@@ -416,8 +417,8 @@ for fileNum=1:size(dataFiles,1)
             ephys=session; ephys=rmfield(ephys,{'baseName','date','stimPower',...
                 'stimFreq','pulseDur', 'stimDevice'});ephys=ephys(1);
             if ~isfield(ephys,'theta'); ephys.theta=[]; end
-            if ~isfield(ephys,'phy'); ephys.phy=[]; end    
-                
+            if ~isfield(ephys,'phy'); ephys.phy=[]; end
+            
             photoStim=session; photoStim=rmfield(photoStim,{'baseName','date',...
                 'probe','adapter','AP', 'ML','depth'});
             for protocolNum=1:size(photoStim,2) % in case there are multiple stimulation protocols
@@ -440,7 +441,7 @@ for fileNum=1:size(dataFiles,1)
                 case 'NN_'
                     aptSuffix = 'A32OM32'; % there's also a 'A32OM16x2' but I don't used it
                 case 'CNT_'
-                    if contains(ephys.adapter,'A16OM16') %if explicitly mentioned 
+                    if contains(ephys.adapter,'A16OM16') %if explicitly mentioned
                         aptSuffix = 'A16OM16';
                     else
                         aptSuffix = 'A32OM32'; %most recordings actually done with that one, as the 16Ch HS is too fat to fit well next to the holder.
@@ -451,7 +452,7 @@ for fileNum=1:size(dataFiles,1)
             aptSuffix = ['A' chNum 'OM' chNum];
         end
         ephys.adapter = [aptPrefix aptSuffix];
-
+        
         % strip probe name to keep either id number or equivalent
         ephys.probe=ephys.probe(1:regexp(ephys.probe,'(?=\d )\w+','once'));
         ephys.probe=strrep(ephys.probe,' ','');
@@ -466,21 +467,21 @@ for fileNum=1:size(dataFiles,1)
             photoStim(protocolNum).trainLength=numel([laserTTL(protocolNum).start]);%'pulses_per_train'
             
             %% add photostim location info if available
-            % stimulation can be through either: 
-                % 1/ an FO implant 
-                % 2/ FO on the probe 
-                % 3/ external (e.g., whisker pad)
-                implantProc=cellfun(@(proc) contains(proc.Procedure,'FO'), notes.Procedures);              
-                %if comment is empty, use default order
-                if isempty(str2num(photoStim(protocolNum).comments)) 
-                    if any(implantProc)
-                        photoStim.comments = 'implant';
-                    elseif contains(ephys.probe,{'Probe35','Probe36','FO'})
-                        photoStim.comments = 'probe';
-                    else %should ask
-                        photoStim.comments = 'external';
-                    end
+            % stimulation can be through either:
+            % 1/ an FO implant
+            % 2/ FO on the probe
+            % 3/ external (e.g., whisker pad)
+            implantProc=cellfun(@(proc) contains(proc.Procedure,'FO'), notes.Procedures);
+            %if comment is empty, use default order
+            if isempty(str2num(photoStim(protocolNum).comments))
+                if any(implantProc)
+                    photoStim.comments = 'implant';
+                elseif contains(ephys.probe,{'Probe35','Probe36','FO'})
+                    photoStim.comments = 'probe';
+                else %should ask
+                    photoStim.comments = 'external';
                 end
+            end
             switch photoStim(protocolNum).comments
                 case 'implant'
                     implantNotes=notes.Procedures{implantProc}.ExtendedNotes;
@@ -503,7 +504,7 @@ for fileNum=1:size(dataFiles,1)
                         'targetBrainArea',[]);
                 case 'external'
                     % not in the brain
-            end              
+            end
         end
     elseif exist('laserTTL','var') && isempty(laserTTL)
         photoStim.trainLength=[];
