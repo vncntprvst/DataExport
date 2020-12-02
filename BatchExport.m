@@ -356,7 +356,7 @@ for fileNum=1:size(dataFiles,1)
     trials = struct('trialNum', [], 'start', [], 'stop', [], 'isphotostim', []);
     if exist('trialTTL','var')
         %
-    elseif exist('laserTTL','var') && ~isempty(laserTTL)
+    elseif exist('laserTTL','var') && ~isempty(laserTTL) && ~isempty(laserTTL.TTLtimes)
         % if there's no task but photostims, create no-stim / stim trials:
         for stimN=1:size(laserTTL,2)
             trials((stimN)*2-1).trialNum=(stimN)*2-2;
